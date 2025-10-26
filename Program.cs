@@ -78,6 +78,15 @@ class Program
         }
     }
 
+    private static void SendSuccessfulResponse(HttpListenerContext context, string code)
+    {
+        byte[] buffer = Encoding.UTF8.GetBytes(code);
+        context.Response.StatusCode = 200;
+        context.Response.ContentLength64 = buffer.Length;
+        context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+        context.Response.OutputStream.Close();
+    }
+
     private static void HandleRequest(HttpListenerContext context)
     {
         string path = context.Request.Url.AbsolutePath;
@@ -103,6 +112,17 @@ class Program
             context.Response.OutputStream.Write(buffer, 0, buffer.Length);
             context.Response.OutputStream.Close();
         }
+        else if (path.Equals("/AirbnbSMSPin", StringComparison.OrdinalIgnoreCase))
+        {
+            var airbnbCode=RetrieveAirbnbVerificationCode(true);
+            SendSuccessfulResponse(context, airbnbCode);
+        }
+        else if (path.Equals("/AirbnbEmailPin", StringComparison.OrdinalIgnoreCase))
+        {
+            var airbnbCode = RetrieveAirbnbVerificationCode(false);
+            SendSuccessfulResponse(context, airbnbCode);
+        }
+
         else if (path.Equals("/Refresh", StringComparison.OrdinalIgnoreCase))
         {
             refreshCompletedSignal.Reset();
@@ -217,6 +237,19 @@ class Program
         return string.Empty;
     }
 
+    public static string SecurityCodeCheck(MimeMessage? email)
+    {
+        string toMatch = "Your security code is ";
+        string subject = email.Subject.ToString();
+        if (subject.Contains(toMatch))
+        {
+            var substr = subject.Substring(toMatch.Length, 6);
+            string[] split = substr.Split('.');
+            return split[0];
+        }
+        return string.Empty;
+    }
+
     public static string RetrieveAirbnbVerificationCode(bool IsSMSPin)
     {
         string airbnbCode = string.Empty;
@@ -245,15 +278,7 @@ class Program
                         }
                         else
                         {
-                            string toMatch = "Your security code is ";
-                            string subject = email.Subject.ToString();
-                            if (subject.Contains(toMatch))
-                            {
-                                var substr = subject.Substring(toMatch.Length, 6);
-                                string[] split = substr.Split('.');
-                                airbnbCode = split[0];
-                                break;
-                            }
+                            airbnbCode = SecurityCodeCheck(email);
                         }
                     }
                     ;
