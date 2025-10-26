@@ -20,6 +20,14 @@ class Program
     // Signal for refresh completion
     private static ManualResetEventSlim refreshCompletedSignal = new ManualResetEventSlim(false);
 
+    // Shared IMAP client and lock to protect access/reconnects
+    private static ImapClient imapClient = CreateImapClient();
+    private static readonly object imapLock = new object();
+
+    // Credentials and server info extracted to variables for reuse
+    private static readonly NetworkCredential imapCredentials = new NetworkCredential("casarosahouse@gmail.com", "dzpq xidy uosf qdmf");
+    private static readonly Uri imapUri = new Uri("imaps://imap.gmail.com");
+
     static void Main(string[] args)
     {
         Thread apiThread = new Thread(StartApiServer) { IsBackground = true };
@@ -30,6 +38,88 @@ class Program
 
         Console.WriteLine("Press Enter to exit...");
         Console.ReadLine();
+
+        // Clean up IMAP client on exit
+        lock (imapLock)
+        {
+            try
+            {
+                if (imapClient.IsConnected)
+                    imapClient.Disconnect(true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error disconnecting IMAP client on exit: " + ex.Message);
+            }
+            finally
+            {
+                imapClient.Dispose();
+            }
+        }
+    }
+
+    private static ImapClient CreateImapClient()
+    {
+        var client = new ImapClient();
+        client.CheckCertificateRevocation = false;
+        return client;
+    }
+
+    /// <summary>
+    /// Ensure the shared IMAP client is connected and authenticated.
+    /// Only reconnects if necessary. Thread-safe.
+    /// Throws exceptions to caller so they can handle transient failures.
+    /// </summary>
+    public static void EnsureImapConnected()
+    {
+        lock (imapLock)
+        {
+            if (imapClient != null && imapClient.IsConnected && imapClient.IsAuthenticated)
+            {
+                // Already connected and authenticated
+                return;
+            }
+
+            // If prior client exists but is connected, try to disconnect cleanly first
+            try
+            {
+                if (imapClient != null && imapClient.IsConnected)
+                {
+                    imapClient.Disconnect(true);
+                }
+            }
+            catch
+            {
+                // swallow disconnect errors and recreate client below
+            }
+
+            // Ensure we have a fresh client
+            try
+            {
+                if (imapClient == null)
+                    imapClient = CreateImapClient();
+
+                // Connect and authenticate
+                imapClient.Connect(imapUri);
+                // Remove XOAUTH2 if not using OAuth2
+                imapClient.AuthenticationMechanisms.Remove("XOAUTH2");
+                imapClient.Authenticate(imapCredentials);
+
+                // Open inbox read-only
+                imapClient.Inbox.Open(FolderAccess.ReadOnly);
+            }
+            catch
+            {
+                // If anything failed, dispose current client and replace with a fresh instance for next attempt
+                try
+                {
+                    imapClient.Dispose();
+                }
+                catch { }
+                imapClient = CreateImapClient();
+                throw;
+            }
+        }
     }
 
     private static bool CheckRemoteValue()
@@ -78,12 +168,19 @@ class Program
         }
     }
 
-    private static void SendSuccessfulResponse(HttpListenerContext context, string code)
+    private static void SendResponse(HttpListenerContext context, string code)
     {
         byte[] buffer = Encoding.UTF8.GetBytes(code);
-        context.Response.StatusCode = 200;
-        context.Response.ContentLength64 = buffer.Length;
-        context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+        if (code.Length > 0)
+        {
+            context.Response.StatusCode = 200;
+            context.Response.ContentLength64 = buffer.Length;
+            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+        }
+        else
+        {
+            context.Response.StatusCode = 201;
+        }
         context.Response.OutputStream.Close();
     }
 
@@ -95,7 +192,7 @@ class Program
         string token = query["Token"];
 
         // Check token first, return 404 if missing or wrong
-        if (token != "a812")
+        if (token==null || !token.Equals("a812"))
         {
             context.Response.StatusCode = 404;
             context.Response.OutputStream.Close();
@@ -114,13 +211,13 @@ class Program
         }
         else if (path.Equals("/AirbnbSMSPin", StringComparison.OrdinalIgnoreCase))
         {
-            var airbnbCode=RetrieveAirbnbVerificationCode(true);
-            SendSuccessfulResponse(context, airbnbCode);
+            var airbnbCode = RetrieveAirbnbVerificationCode(true);
+            SendResponse(context, airbnbCode);
         }
         else if (path.Equals("/AirbnbEmailPin", StringComparison.OrdinalIgnoreCase))
         {
             var airbnbCode = RetrieveAirbnbVerificationCode(false);
-            SendSuccessfulResponse(context, airbnbCode);
+            SendResponse(context, airbnbCode);
         }
 
         else if (path.Equals("/Refresh", StringComparison.OrdinalIgnoreCase))
@@ -196,6 +293,15 @@ class Program
         }
     }
 
+    private static void RefreshInbox()
+    {
+        EnsureImapConnected();
+        // Either:
+        imapClient.NoOp();
+        // Or:
+        // imapClient.NoOp();
+    }
+
     private static bool GetRemoteData()
     {
         // Replace with actual API call logic.
@@ -203,22 +309,37 @@ class Program
         return new Random().NextDouble() > 0.5;
     }
 
+    // Connect method retained for compatibility but made to call EnsureImapConnected
     public static void Connect(ImapClient? client)
     {
-        var credentials = new NetworkCredential("casarosahouse@gmail.com", "dzpq xidy uosf qdmf");
-        var uri = new Uri("imaps://imap.gmail.com");
-        client.CheckCertificateRevocation = false;
-        client.Connect(uri);
-
-        // Remove the XOAUTH2 authentication mechanism since we don't have an OAuth2 token.
-        client.AuthenticationMechanisms.Remove("XOAUTH2");
-
-        client.Authenticate(credentials);
-
-        client.Inbox.Open(FolderAccess.ReadOnly);
+        // Prefer using the shared client. If a client is provided, ensure it's connected.
+        if (client != null)
+        {
+            try
+            {
+                client.CheckCertificateRevocation = false;
+                if (!client.IsConnected || !client.IsAuthenticated)
+                {
+                    client.Connect(imapUri);
+                    client.AuthenticationMechanisms.Remove("XOAUTH2");
+                    client.Authenticate(imapCredentials);
+                    client.Inbox.Open(FolderAccess.ReadOnly);
+                }
+            }
+            catch
+            {
+                try { if (client.IsConnected) client.Disconnect(true); } catch { }
+                throw;
+            }
+        }
+        else
+        {
+            // Ensure shared client is connected
+            EnsureImapConnected();
+        }
     }
 
-    public static string PinCheck(MimeMessage? email)
+    public static string SMSPinCheck(MimeMessage? email)
     {
         if (email.From.ToString().Contains("voice"))
         {
@@ -253,40 +374,68 @@ class Program
     public static string RetrieveAirbnbVerificationCode(bool IsSMSPin)
     {
         string airbnbCode = string.Empty;
-        using (var client = new ImapClient())
+
+        Console.WriteLine("Retreiving PIN");
+        // Use the shared IMAP client. Ensure connection first; if there's an error, attempt one reconnect then fail gracefully.
+        try
         {
-            Connect(client);
-            // keep track of the messages
-            IList<IMessageSummary> messages = null;
-            int count = 0;
+            EnsureImapConnected();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Failed to connect to IMAP server: " + ex.Message);
+            return airbnbCode;
+        }
 
-            if (client.Inbox.Count > 0)
+        // Lock access to the IMAP client while enumerating messages to avoid concurrent state issues.
+        lock (imapLock)
+        {
+            try
             {
-                // check the last 3 emails
-                int end = client.Inbox.Count - 5;
-                if (end < 0) end = 0;
-                for (int i = client.Inbox.Count - 1; i >= end; i--)
+                RefreshInbox();
+                if (imapClient.Inbox.Count > 0)
                 {
-                    var email = client.Inbox.GetMessage(i);
-                    Console.WriteLine($"Looking at email date {email.Date} from {email.From}");
-                    if (email.Date > DateTime.Now.AddMinutes(-2))
+                    // check the last up to 5 emails
+                    int end = imapClient.Inbox.Count - 5;
+                    if (end < 0) end = 0;
+                    for (int i = imapClient.Inbox.Count - 1; i >= end; i--)
                     {
-                        if (IsSMSPin)
+                        var email = imapClient.Inbox.GetMessage(i);
+                        Console.WriteLine($"Looking at email date {email.Date} from {email.From}");
+                        if (email.Date > DateTime.Now.AddMinutes(-10))
                         {
-                            airbnbCode=PinCheck(email);
+                            if (IsSMSPin)
+                            {
+                                airbnbCode = SMSPinCheck(email);
+                            }
+                            else
+                            {
+                                airbnbCode = SecurityCodeCheck(email);
+                            }
 
-                        }
-                        else
-                        {
-                            airbnbCode = SecurityCodeCheck(email);
+                            if (!string.IsNullOrEmpty(airbnbCode))
+                                break;
                         }
                     }
-                    ;
+                    Console.WriteLine($"Airbnb code found: {airbnbCode}");
                 }
-                Console.WriteLine($"Airbnb code sent {airbnbCode}");
             }
-            client.Disconnect(true);
+            catch (Exception ex)
+            {
+                // If operation fails due to connection, attempt to reset connection once.
+                Console.WriteLine("Error reading IMAP messages: " + ex.Message);
+                try
+                {
+                    if (imapClient.IsConnected)
+                        imapClient.Disconnect(true);
+                }
+                catch { }
+                // Replace client to ensure a clean state next time
+                try { imapClient.Dispose(); } catch { }
+                imapClient = CreateImapClient();
+            }
         }
+
         return airbnbCode;
     }
 }
