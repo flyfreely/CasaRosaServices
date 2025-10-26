@@ -12,7 +12,9 @@ using MimeKit;
 class Program
 {
     private static readonly object lockObj = new object();
-    private static List<DateTime> successfulPollTimestamps = new List<DateTime>();
+    private static List<DateTime> airbnbMessagesTimestamps = new List<DateTime>();
+    private static List<DateTime> airbnbCurrentGuestMessagesTimestamps = new List<DateTime>();
+    private static List<DateTime> airbnbCurrentGuestImportantMessagesTimestamps = new List<DateTime>();
     private static bool RemoteValue => CheckRemoteValue();
 
     // Signal for refresh request
@@ -27,7 +29,8 @@ class Program
     // Credentials and server info extracted to variables for reuse
     private static readonly NetworkCredential imapCredentials = new NetworkCredential("casarosahouse@gmail.com", "dzpq xidy uosf qdmf");
     private static readonly Uri imapUri = new Uri("imaps://imap.gmail.com");
-
+    private static int pollingIntervalMinutes = 60;
+    private static DateTime lastPollTime = DateTime.MinValue;
     static void Main(string[] args)
     {
         Thread apiThread = new Thread(StartApiServer) { IsBackground = true };
@@ -127,8 +130,8 @@ class Program
         lock (lockObj)
         {
             DateTime cutoff = DateTime.UtcNow.AddMinutes(-10);
-            successfulPollTimestamps.RemoveAll(t => t < cutoff);
-            return successfulPollTimestamps.Count > 0;
+            airbnbMessagesTimestamps.RemoveAll(t => t < cutoff);
+            return airbnbMessagesTimestamps.Count > 0;
         }
     }
 
@@ -222,6 +225,8 @@ class Program
 
         else if (path.Equals("/Refresh", StringComparison.OrdinalIgnoreCase))
         {
+            pollingIntervalMinutes = 1; // set polling interval to 1 minute 
+            lastPollTime = DateTime.Now;
             refreshCompletedSignal.Reset();
             refreshSignal.Set();
 
@@ -257,10 +262,11 @@ class Program
     {
         Console.WriteLine("Polling thread started.");
 
+
         while (true)
         {
-            // Wait either for refresh signal or timeout of 5 minutes
-            if (refreshSignal.Wait(TimeSpan.FromMinutes(5)))
+            // Wait either for refresh signal or timeout 
+            if (refreshSignal.Wait(TimeSpan.FromMinutes(pollingIntervalMinutes)))
             {
                 // Refresh requested - call GetRemoteData immediately
                 Console.WriteLine($"{DateTime.UtcNow}: Refresh signal received, polling immediately.");
@@ -270,13 +276,18 @@ class Program
                 Console.WriteLine($"{DateTime.UtcNow}: Regular polling interval.");
             }
 
+            if (lastPollTime.AddMinutes(10) < DateTime.Now )
+            {
+                pollingIntervalMinutes = 60; // reset to default
+            }
+
             bool apiResult = GetRemoteData();
 
             if (apiResult)
             {
                 lock (lockObj)
                 {
-                    successfulPollTimestamps.Add(DateTime.UtcNow);
+                    airbnbMessagesTimestamps.Add(DateTime.UtcNow);
                 }
                 Console.WriteLine($"{DateTime.UtcNow}: Poll successful, RemoteValue set to true.");
             }
