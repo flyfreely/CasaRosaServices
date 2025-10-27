@@ -1,22 +1,24 @@
-#See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
+# base runtime
 FROM mcr.microsoft.com/dotnet/runtime:9.0 AS base
-USER app
 WORKDIR /app
 
+# build
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["./EmailChecker.csproj", "EmailChecker/"]
-RUN dotnet restore "./EmailChecker.csproj"
+# copy only the csproj first for restore layer caching
+COPY EmailChecker.csproj ./
+RUN dotnet restore "EmailChecker.csproj"
+# now copy the rest
 COPY . .
-WORKDIR "/src"
-RUN dotnet build "./EmailChecker.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "EmailChecker.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
+# publish
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./EmailCHecker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "EmailChecker.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
+# final image
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
