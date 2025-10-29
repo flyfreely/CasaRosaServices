@@ -1,9 +1,9 @@
 version: "3.9"
 services:
   app:
-    image: emailsender:latest
+    image: cesarpenafiel2/emailchecker:latest
     ports:
-      - "5000:5000"
+      - "8237:5000"   # host:container
     environment:
       Imap__Scheme: imaps
       Imap__Host: imap.gmail.com

@@ -6,6 +6,7 @@ using MimeKit;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 class Program
 {
@@ -67,9 +68,9 @@ class Program
         Thread pollingThread = new Thread(StartPolling) { IsBackground = true };
         pollingThread.Start();
 
-        Console.WriteLine("Press Enter to exit...");
-        Console.ReadLine();
-
+        // need this instead of Console.ReadLine to keep the main thread alive in docker compose up where there is no console
+        Thread.Sleep(Timeout.Infinite);
+        
         lock (imapLock)
         {
             try
@@ -161,10 +162,24 @@ class Program
 
     private static void StartApiServer()
     {
-        var listener = new HttpListener();
-        foreach (var prefix in httpPrefixes)
-            listener.Prefixes.Add(prefix);
-
+        HttpListener listener;
+        Console.WriteLine($"Starting API Server... {httpPrefixes.Count()} port(s)");
+        try
+        {
+            listener = new HttpListener();
+            foreach (var prefix in httpPrefixes)
+            {
+                Console.WriteLine($"Listening to {prefix}");
+                listener.Prefixes.Add(prefix);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"HTTP Listener error {ex.InnerException}: {ex.Message}");
+            // 48/98 = EADDRINUSE (address in use)
+            // 13 = permission (rare for port 5000)
+            throw;
+        }
         try
         {
             listener.Start();

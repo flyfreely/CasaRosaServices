@@ -1,2 +1,2 @@
-docker tag emailchecker:latest flyfreely/emailchecker:latest
-docker push flyfreely/emailchecker:latest
+docker tag emailchecker:latest cesarpenafiel2/emailchecker:latest
+docker push cesarpenafiel2/emailchecker:latest
