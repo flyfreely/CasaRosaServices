@@ -146,12 +146,12 @@ class Program
     private static void StartApiServer()
     {
         var listener = new HttpListener();
-        listener.Prefixes.Add("http://localhost:5000/");
+        listener.Prefixes.Add("http://+:5000/");
 
         try
         {
             listener.Start();
-            Console.WriteLine("API Server started at http://localhost:5000/");
+            Console.WriteLine("API Server started at http://0.0.0.0:5000/");
 
             while (true)
             {
