@@ -1,22 +1,50 @@
 ﻿using EmailChecker;
 using MailKit;
 using MailKit.Net.Imap;
+using Microsoft.Extensions.Configuration;
 using MimeKit;
-using System;
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Mail;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 
 class Program
 {
-    public static int resetToDefaultMinutes = 10;
+    // Configurable values loaded from appsettings.json
+    private static IConfiguration config;
+
+    // General configuration values
+    private static int resetToDefaultMinutes;
+    private static int pollingIntervalMinutes;
+    private static int refreshTimeoutSeconds;
+    private static int lookbackMinutes;
+    private static int maxMessagesToScan;
+    private static string apiToken;
+
+    // IMAP info
+    private static string imapScheme;
+    private static string imapHost;
+    private static int imapPort;
+    private static bool checkCrl;
+    private static string imapUser;
+    private static string imapPass;
+    private static bool useOAuth2;
+
+    // HTTP listener prefixes
+    private static string[] httpPrefixes;
+
     private static readonly object lockObj = new object();
     private static bool airbnbMessagesPending = false;
-    private static List<DateTime> airbnbCurrentGuestMessagesTimestamps = new List<DateTime>();
-    private static List<DateTime> airbnbCurrentGuestImportantMessagesTimestamps = new List<DateTime>();
+
+    private static ImapClient imapClient;
+    private static readonly object imapLock = new object();
+    private static NetworkCredential imapCredentials;
+    private static Uri imapUri;
+
+    private static DateTime lastPollTime = DateTime.MinValue;
+    private static DateTime lastImportantMessageAlarm = DateTime.MinValue;
+
+    private static ManualResetEventSlim refreshSignal = new ManualResetEventSlim(false);
+    private static ManualResetEventSlim refreshCompletedSignal = new ManualResetEventSlim(false);
 
     public enum TypeOfMessageCheck
     {
@@ -24,25 +52,15 @@ class Program
         EmailCode,
         AirbnbCurrentGuestMessage
     }
-    private static bool RemoteValue => CheckRemoteValue();
 
-    // Signal for refresh request
-    private static ManualResetEventSlim refreshSignal = new ManualResetEventSlim(false);
-    // Signal for refresh completion
-    private static ManualResetEventSlim refreshCompletedSignal = new ManualResetEventSlim(false);
-
-    // Shared IMAP client and lock to protect access/reconnects
-    private static ImapClient imapClient = CreateImapClient();
-    private static readonly object imapLock = new object();
-
-    // Credentials and server info extracted to variables for reuse
-    private static readonly NetworkCredential imapCredentials = new NetworkCredential("casarosahouse@gmail.com", "dzpq xidy uosf qdmf");
-    private static readonly Uri imapUri = new Uri("imaps://imap.gmail.com");
-    private static int pollingIntervalMinutes = 60;
-    private static DateTime lastPollTime = DateTime.MinValue;
-    private static DateTime lastImportantMessageAlarm = DateTime.MinValue;
     static void Main(string[] args)
     {
+        LoadConfiguration();
+
+        imapCredentials = new NetworkCredential(imapUser, imapPass);
+        imapUri = new Uri($"{imapScheme}://{imapHost}:{imapPort}");
+        imapClient = CreateImapClient();
+
         Thread apiThread = new Thread(StartApiServer) { IsBackground = true };
         apiThread.Start();
 
@@ -52,7 +70,6 @@ class Program
         Console.WriteLine("Press Enter to exit...");
         Console.ReadLine();
 
-        // Clean up IMAP client on exit
         lock (imapLock)
         {
             try
@@ -71,87 +88,87 @@ class Program
         }
     }
 
+    private static void LoadConfiguration()
+    {
+        config = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        // HTTP and token
+        httpPrefixes = config.GetSection("Http:Prefixes").Get<string[]>();
+        apiToken = config["Http:AuthToken"];
+
+        // IMAP
+        imapScheme = config["Imap:Scheme"];
+        imapHost = config["Imap:Host"];
+        imapPort = int.Parse(config["Imap:Port"] ?? "993");
+        checkCrl = bool.Parse(config["Imap:CheckCertificateRevocation"] ?? "false");
+        imapUser = config["Imap:Username"];
+        imapPass = config["Imap:Password"];
+        useOAuth2 = bool.Parse(config["Imap:UseOAuth2"] ?? "false");
+
+        // Airbnb / Polling
+        resetToDefaultMinutes = int.Parse(config["Airbnb:ResetToDefaultMinutes"] ?? "10");
+        pollingIntervalMinutes = int.Parse(config["Polling:DefaultIntervalMinutes"] ?? "60");
+        refreshTimeoutSeconds = int.Parse(config["Polling:ImmediateRefreshTimeoutSeconds"] ?? "30");
+        lookbackMinutes = int.Parse(config["Polling:LookbackMinutes"] ?? "10");
+        maxMessagesToScan = int.Parse(config["Polling:MaxMessagesToScan"] ?? "5");
+    }
+
     private static ImapClient CreateImapClient()
     {
         var client = new ImapClient();
-        client.CheckCertificateRevocation = false;
+        client.CheckCertificateRevocation = checkCrl;
         return client;
     }
 
-    /// <summary>
-    /// Ensure the shared IMAP client is connected and authenticated.
-    /// Only reconnects if necessary. Thread-safe.
-    /// Throws exceptions to caller so they can handle transient failures.
-    /// </summary>
     public static void EnsureImapConnected()
     {
         lock (imapLock)
         {
             if (imapClient != null && imapClient.IsConnected && imapClient.IsAuthenticated)
-            {
-                // Already connected and authenticated
                 return;
-            }
 
-            // If prior client exists but is connected, try to disconnect cleanly first
             try
             {
                 if (imapClient != null && imapClient.IsConnected)
-                {
                     imapClient.Disconnect(true);
-                }
             }
-            catch
-            {
-                // swallow disconnect errors and recreate client below
-            }
+            catch { }
 
-            // Ensure we have a fresh client
             try
             {
                 if (imapClient == null)
                     imapClient = CreateImapClient();
 
-                // Connect and authenticate
                 imapClient.Connect(imapUri);
-                // Remove XOAUTH2 if not using OAuth2
-                imapClient.AuthenticationMechanisms.Remove("XOAUTH2");
-                imapClient.Authenticate(imapCredentials);
+                if (!useOAuth2)
+                    imapClient.AuthenticationMechanisms.Remove("XOAUTH2");
 
-                // Open inbox read-only
+                imapClient.Authenticate(imapCredentials);
                 imapClient.Inbox.Open(FolderAccess.ReadOnly);
             }
             catch
             {
-                // If anything failed, dispose current client and replace with a fresh instance for next attempt
-                try
-                {
-                    imapClient.Dispose();
-                }
-                catch { }
+                try { imapClient.Dispose(); } catch { }
                 imapClient = CreateImapClient();
                 throw;
             }
         }
     }
 
-    private static bool CheckRemoteValue()
-    {
-        lock (lockObj)
-        {
-            return airbnbMessagesPending;
-        }
-    }
-
     private static void StartApiServer()
     {
         var listener = new HttpListener();
-        listener.Prefixes.Add("http://+:5000/");
+        foreach (var prefix in httpPrefixes)
+            listener.Prefixes.Add(prefix);
 
         try
         {
             listener.Start();
-            Console.WriteLine("API Server started at http://0.0.0.0:5000/");
+            Console.WriteLine($"API Server started at: {string.Join(", ", httpPrefixes)}");
 
             while (true)
             {
@@ -179,112 +196,39 @@ class Program
         }
     }
 
-    private static void SendResponse(HttpListenerContext context, string code)
-    {
-        byte[] buffer = Encoding.UTF8.GetBytes(code);
-        if (code.Length > 0)
-        {
-            context.Response.StatusCode = 200;
-            context.Response.ContentLength64 = buffer.Length;
-            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-        }
-        else
-        {
-            context.Response.StatusCode = 201;
-        }
-        context.Response.OutputStream.Close();
-    }
-
     private static void HandleRequest(HttpListenerContext context)
     {
         string path = context.Request.Url.AbsolutePath;
+        string token = context.Request.QueryString["Token"];
 
-        var query = context.Request.QueryString;
-        string token = query["Token"];
-
-        // Check token first, return 404 if missing or wrong
-        if (token==null || !token.Equals("a812"))
+        if (token == null || token != apiToken)
         {
             context.Response.StatusCode = 404;
             context.Response.OutputStream.Close();
             return;
         }
 
-        Console.WriteLine($"request received {path}");
+        Console.WriteLine($"Request received {path}");
+
         if (path.Equals("/GetStatus", StringComparison.OrdinalIgnoreCase))
         {
-            bool remoteValue = RemoteValue;
+            bool remoteValue = airbnbMessagesPending;
             context.Response.StatusCode = remoteValue ? 200 : 201;
-            string responseString = remoteValue ? "Remote value is true" : "Remote value is false";
-            byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-            context.Response.ContentLength64 = buffer.Length;
-            context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-            context.Response.OutputStream.Close();
+            WriteResponse(context, remoteValue ? "Remote value is true" : "Remote value is false");
         }
         else if (path.Equals("/AirbnbSMSPin", StringComparison.OrdinalIgnoreCase))
         {
             var airbnbCode = RetrieveAirbnbVerificationCode(TypeOfMessageCheck.SMSPin);
-            SendResponse(context, airbnbCode);
+            WriteResponse(context, airbnbCode);
         }
         else if (path.Equals("/AirbnbEmailPin", StringComparison.OrdinalIgnoreCase))
         {
             var airbnbCode = RetrieveAirbnbVerificationCode(TypeOfMessageCheck.EmailCode);
-            SendResponse(context, airbnbCode);
+            WriteResponse(context, airbnbCode);
         }
-
         else if (path.Equals("/AirbnbMessages", StringComparison.OrdinalIgnoreCase))
         {
-            lastPollTime = DateTime.Now;
-            if (pollingIntervalMinutes > 1)
-            {
-                // perform a hard pull to refresh immediately
-                refreshCompletedSignal.Reset();
-                refreshSignal.Set();
-                pollingIntervalMinutes = 1; // set polling interval to 1 minute 
-                // Wait for polling thread to complete refresh
-                if (refreshCompletedSignal.Wait(TimeSpan.FromSeconds(30))) // timeout 30 sec
-                {
-                    if (airbnbMessagesPending && lastImportantMessageAlarm.Add(TimeSpan.FromMinutes(resetToDefaultMinutes)) < DateTime.Now)
-                        context.Response.StatusCode = 200;
-                    else
-                        context.Response.StatusCode = 201;
-
-                    Console.WriteLine($"Returning {context.Response.StatusCode} from poll");
-
-                    lastImportantMessageAlarm = DateTime.Now;
-
-                }
-                else
-                {
-                    string responseString = "Refresh timeout";
-                    byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-                    context.Response.StatusCode = 504; // Gateway Timeout
-                    context.Response.ContentLength64 = buffer.Length;
-                    context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-                    Console.WriteLine($"Timeout polling");
-                }
-            }
-            else
-            {
-                if (airbnbMessagesPending && lastImportantMessageAlarm.Add(TimeSpan.FromMinutes(resetToDefaultMinutes)) < DateTime.Now)
-                {
-                    lastImportantMessageAlarm = DateTime.Now;
-                    context.Response.StatusCode = 200;
-                }
-                else
-                {
-                    context.Response.StatusCode = 201;
-
-                }
-                string responseString = airbnbMessagesPending ? "Remote value is true" : "Remote value is false";
-                byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-                context.Response.ContentLength64 = buffer.Length;
-                context.Response.OutputStream.Write(buffer, 0, buffer.Length);
-                Console.WriteLine($"Returning {context.Response.StatusCode} from cache");
-            }
-
-
-            context.Response.OutputStream.Close();
+            HandleAirbnbMessages(context);
         }
         else
         {
@@ -293,43 +237,89 @@ class Program
         }
     }
 
+    private static void WriteResponse(HttpListenerContext context, string content)
+    {
+        byte[] buffer = Encoding.UTF8.GetBytes(content ?? "");
+        context.Response.StatusCode = 200;
+        context.Response.ContentLength64 = buffer.Length;
+        context.Response.OutputStream.Write(buffer, 0, buffer.Length);
+        context.Response.OutputStream.Close();
+    }
+
+    private static void HandleAirbnbMessages(HttpListenerContext context)
+    {
+        lastPollTime = DateTime.Now;
+
+        if (pollingIntervalMinutes > 1)
+        {
+            refreshCompletedSignal.Reset();
+            refreshSignal.Set();
+            pollingIntervalMinutes = 1;
+
+            if (refreshCompletedSignal.Wait(TimeSpan.FromSeconds(refreshTimeoutSeconds)))
+            {
+                context.Response.StatusCode = (airbnbMessagesPending &&
+                    lastImportantMessageAlarm.AddMinutes(resetToDefaultMinutes) < DateTime.Now)
+                    ? 200 : 201;
+
+                lastImportantMessageAlarm = DateTime.Now;
+                Console.WriteLine($"Returning {context.Response.StatusCode} from poll");
+            }
+            else
+            {
+                context.Response.StatusCode = 504;
+                WriteResponse(context, "Refresh timeout");
+                Console.WriteLine("Timeout polling");
+                return;
+            }
+        }
+        else
+        {
+            if (airbnbMessagesPending &&
+                lastImportantMessageAlarm.AddMinutes(resetToDefaultMinutes) < DateTime.Now)
+            {
+                lastImportantMessageAlarm = DateTime.Now;
+                context.Response.StatusCode = 200;
+            }
+            else
+            {
+                context.Response.StatusCode = 201;
+            }
+
+            Console.WriteLine($"Returning {context.Response.StatusCode} from cache");
+        }
+
+        WriteResponse(context, airbnbMessagesPending ? "Remote value is true" : "Remote value is false");
+    }
+
     private static void StartPolling()
     {
         Console.WriteLine("Polling thread started.");
 
-
         while (true)
         {
-            // Wait either for refresh signal or timeout
             bool refreshTriggered = refreshSignal.Wait(TimeSpan.FromMinutes(pollingIntervalMinutes));
+
             if (refreshTriggered)
             {
                 Console.WriteLine($"{DateTime.UtcNow}: Refresh signal received, polling immediately.");
-                // IMPORTANT: consume the signal here so we don't loop twice
                 refreshSignal.Reset();
             }
             else
             {
-                Console.WriteLine($"{DateTime.UtcNow}: Regular (timeout) polling interval.");
+                Console.WriteLine($"{DateTime.UtcNow}: Regular polling interval.");
             }
 
-            if (lastPollTime.AddMinutes(resetToDefaultMinutes) < DateTime.Now )
-            {
-                pollingIntervalMinutes = 60; // reset to default
-            }
+            if (lastPollTime.AddMinutes(resetToDefaultMinutes) < DateTime.Now)
+                pollingIntervalMinutes = int.Parse(config["Polling:DefaultIntervalMinutes"] ?? "60");
 
             var airbnbCode = RetrieveAirbnbVerificationCode(TypeOfMessageCheck.AirbnbCurrentGuestMessage);
 
             lock (lockObj)
-            {
-                if (string.IsNullOrEmpty(airbnbCode))
-                    airbnbMessagesPending = false;
-                else
-                    airbnbMessagesPending =true;
-            }
+                airbnbMessagesPending = !string.IsNullOrEmpty(airbnbCode);
+
             Console.WriteLine($"{DateTime.UtcNow}: Poll successful, {airbnbMessagesPending}.");
 
-            // Only signal completion if this loop was a refresh
             if (refreshTriggered)
                 refreshCompletedSignal.Set();
         }
@@ -338,47 +328,7 @@ class Program
     private static void RefreshInbox()
     {
         EnsureImapConnected();
-        // Either:
         imapClient.NoOp();
-        // Or:
-        // imapClient.NoOp();
-    }
-
-    private static bool GetRemoteData()
-    {
-        // Replace with actual API call logic.
-        // For demo, returns true randomly 50% of the time.
-        return new Random().NextDouble() > 0.5;
-    }
-
-    // Connect method retained for compatibility but made to call EnsureImapConnected
-    public static void Connect(ImapClient? client)
-    {
-        // Prefer using the shared client. If a client is provided, ensure it's connected.
-        if (client != null)
-        {
-            try
-            {
-                client.CheckCertificateRevocation = false;
-                if (!client.IsConnected || !client.IsAuthenticated)
-                {
-                    client.Connect(imapUri);
-                    client.AuthenticationMechanisms.Remove("XOAUTH2");
-                    client.Authenticate(imapCredentials);
-                    client.Inbox.Open(FolderAccess.ReadOnly);
-                }
-            }
-            catch
-            {
-                try { if (client.IsConnected) client.Disconnect(true); } catch { }
-                throw;
-            }
-        }
-        else
-        {
-            // Ensure shared client is connected
-            EnsureImapConnected();
-        }
     }
 
     public static string SMSPinCheck(MimeMessage? email)
@@ -387,9 +337,9 @@ class Program
         {
             string sub = email.Body.ToString().Trim();
             string plainText = Regex.Replace(sub, "<[^>]+?>", " ");
-            plainText = System.Net.WebUtility.HtmlDecode(plainText).Trim();
+            plainText = WebUtility.HtmlDecode(plainText).Trim();
             string toMatch = "Airbnb verification code is ";
-            var loc = plainText.IndexOf(toMatch);
+            int loc = plainText.IndexOf(toMatch);
             if (loc > 0)
             {
                 var substr = plainText.Substring(loc + toMatch.Length, 6);
@@ -404,23 +354,19 @@ class Program
     {
         DateTime now = DateTime.Now;
         string toMatch = "Reservation for ";
-        string subject = email.Subject.ToString();
+        string subject = email.Subject ?? "";
         if (subject.Contains(toMatch))
         {
             bool currentGuest = AirbnbDateParser.TryParseDateRange(subject, out DateTime checkIn, out DateTime checkOut, now);
-            if (currentGuest && now >= checkIn && now < checkOut)
-            {
-                return true;
-            }
+            return currentGuest && now >= checkIn && now < checkOut;
         }
         return false;
     }
-    
 
     public static string EmailCodeCheck(MimeMessage? email)
     {
         string toMatch = "Your security code is ";
-        string subject = email.Subject.ToString();
+        string subject = email.Subject ?? "";
         if (subject.Contains(toMatch))
         {
             var substr = subject.Substring(toMatch.Length, 6);
@@ -435,7 +381,6 @@ class Program
         string airbnbCode = string.Empty;
 
         Console.WriteLine("Retrieving PIN");
-        // Use the shared IMAP client. Ensure connection first; if there's an error, attempt one reconnect then fail gracefully.
         try
         {
             EnsureImapConnected();
@@ -446,7 +391,6 @@ class Program
             return airbnbCode;
         }
 
-        // Lock access to the IMAP client while enumerating messages to avoid concurrent state issues.
         lock (imapLock)
         {
             try
@@ -454,31 +398,21 @@ class Program
                 RefreshInbox();
                 if (imapClient.Inbox.Count > 0)
                 {
-                    // check the last up to 5 emails
-                    int end = imapClient.Inbox.Count - 5;
-                    if (end < 0) end = 0;
+                    int end = Math.Max(0, imapClient.Inbox.Count - maxMessagesToScan);
                     for (int i = imapClient.Inbox.Count - 1; i >= end; i--)
                     {
                         var email = imapClient.Inbox.GetMessage(i);
-                        Console.WriteLine($"Looking at email date {email.Date} from {email.From}");
-                        if (email.Date > DateTime.Now.AddMinutes(-resetToDefaultMinutes))
+                        Console.WriteLine($"Checking email date {email.Date} from {email.From}");
+
+                        if (email.Date > DateTime.Now.AddMinutes(-lookbackMinutes))
                         {
                             if (messageType == TypeOfMessageCheck.SMSPin)
-                            {
                                 airbnbCode = SMSPinCheck(email);
-                            }
                             else if (messageType == TypeOfMessageCheck.EmailCode)
-                            {
                                 airbnbCode = EmailCodeCheck(email);
-                            }
                             else if (messageType == TypeOfMessageCheck.AirbnbCurrentGuestMessage)
-                            {
-                                if (CurrentGuestMessageFromAirbnb(email)) 
-                                {
+                                if (CurrentGuestMessageFromAirbnb(email))
                                     airbnbCode = "CurrentGuestMessageFound";
-                                }
-
-                            }
 
                             if (!string.IsNullOrEmpty(airbnbCode))
                                 break;
@@ -489,15 +423,8 @@ class Program
             }
             catch (Exception ex)
             {
-                // If operation fails due to connection, attempt to reset connection once.
                 Console.WriteLine("Error reading IMAP messages: " + ex.Message);
-                try
-                {
-                    if (imapClient.IsConnected)
-                        imapClient.Disconnect(true);
-                }
-                catch { }
-                // Replace client to ensure a clean state next time
+                try { if (imapClient.IsConnected) imapClient.Disconnect(true); } catch { }
                 try { imapClient.Dispose(); } catch { }
                 imapClient = CreateImapClient();
             }

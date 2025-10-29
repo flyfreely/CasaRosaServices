@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  app:
+    image: emailsender:latest
+    ports:
+      - "5000:5000"
+    environment:
+      Imap__Scheme: imaps
+      Imap__Host: imap.gmail.com
+      Imap__Port: "993"
+      Imap__CheckCertificateRevocation: "false"
+      Imap__Username: ${IMAP_USERNAME}
+      Imap__Password: ${IMAP_PASSWORD}
+      Http__AuthToken: ${HTTP_AUTH_TOKEN}
