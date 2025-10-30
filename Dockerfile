@@ -11,6 +11,7 @@ COPY EmailChecker.csproj ./
 RUN dotnet restore "EmailChecker.csproj"
 # now copy the rest
 COPY . .
+COPY ["./appsettings.docker.json", "appsettings.json"]
 RUN dotnet build "EmailChecker.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # publish

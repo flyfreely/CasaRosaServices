@@ -228,7 +228,7 @@ class Program
         if (path.Equals("/GetStatus", StringComparison.OrdinalIgnoreCase))
         {
             bool remoteValue = airbnbMessagesPending;
-            context.Response.StatusCode = remoteValue ? 200 : 201;
+            context.Response.StatusCode = remoteValue ? 200 : 204;
             WriteResponse(context, remoteValue ? "Remote value is true" : "Remote value is false");
         }
         else if (path.Equals("/AirbnbSMSPin", StringComparison.OrdinalIgnoreCase))
@@ -247,7 +247,7 @@ class Program
         }
         else
         {
-            context.Response.StatusCode = 404;
+            context.Response.StatusCode = 204;
             context.Response.OutputStream.Close();
         }
     }
@@ -255,7 +255,6 @@ class Program
     private static void WriteResponse(HttpListenerContext context, string content)
     {
         byte[] buffer = Encoding.UTF8.GetBytes(content ?? "");
-        context.Response.StatusCode = 200;
         context.Response.ContentLength64 = buffer.Length;
         context.Response.OutputStream.Write(buffer, 0, buffer.Length);
         context.Response.OutputStream.Close();
@@ -275,7 +274,7 @@ class Program
             {
                 context.Response.StatusCode = (airbnbMessagesPending &&
                     lastImportantMessageAlarm.AddMinutes(resetToDefaultMinutes) < DateTime.Now)
-                    ? 200 : 201;
+                    ? 200 : 204;
 
                 lastImportantMessageAlarm = DateTime.Now;
                 Console.WriteLine($"Returning {context.Response.StatusCode} from poll");
@@ -298,7 +297,7 @@ class Program
             }
             else
             {
-                context.Response.StatusCode = 201;
+                context.Response.StatusCode = 204;
             }
 
             Console.WriteLine($"Returning {context.Response.StatusCode} from cache");
@@ -372,8 +371,10 @@ class Program
         string subject = email.Subject ?? "";
         if (subject.Contains(toMatch))
         {
+            Console.WriteLine("Found potential current guest message: " + subject);
             bool currentGuest = AirbnbDateParser.TryParseDateRange(subject, out DateTime checkIn, out DateTime checkOut, now);
-            return currentGuest && now >= checkIn && now < checkOut;
+            if (currentGuest && (now >= checkIn) && (now <= checkOut))
+                return true;
         }
         return false;
     }
