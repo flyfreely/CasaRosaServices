@@ -66,18 +66,23 @@ app.MapPost("/login", async (HttpContext ctx) =>
 // GET /dashboard
 app.MapGet("/dashboard", async () =>
 {
-    var briefingTime = await GetConfigAsync("briefing_time") ?? "18:00";
-    return Results.Content(DashboardPage(briefingTime), "text/html");
+    var briefingTime    = await GetConfigAsync("briefing_time")    ?? "18:00";
+    var briefingChannel = await GetConfigAsync("briefing_channel") ?? "-5129864639";
+    return Results.Content(DashboardPage(briefingTime, briefingChannel), "text/html");
 }).RequireAuthorization();
 
 // POST /dashboard – save settings
 app.MapPost("/dashboard", async (HttpContext ctx) =>
 {
-    var form = await ctx.Request.ReadFormAsync();
-    var t    = form["briefing_time"].ToString();
+    var form    = await ctx.Request.ReadFormAsync();
+    var t       = form["briefing_time"].ToString();
+    var channel = form["briefing_channel"].ToString();
     if (!TimeOnly.TryParse(t, out _)) t = "18:00";
-    await SetConfigAsync("briefing_time", t);
-    return Results.Content(DashboardPage(t, "Settings saved."), "text/html");
+    if (!long.TryParse(channel, out _)) channel = "-5129864639";
+    await SetConfigAsync("briefing_time",    t);
+    await SetConfigAsync("briefing_channel", channel);
+    var briefingChannel = await GetConfigAsync("briefing_channel") ?? channel;
+    return Results.Content(DashboardPage(t, briefingChannel, "Settings saved."), "text/html");
 }).RequireAuthorization();
 
 // GET /api/config/{key} – for internal services
@@ -147,6 +152,13 @@ async Task EnsureDbAsync()
     if (cfgCount == 0)
         await RunAsync(conn,
             "INSERT INTO dbo.Admin_Config ([Key], [Value]) VALUES ('briefing_time', '18:00')");
+
+    // Seed default briefing channel (Casa Rosa English)
+    var chCount = (int)(await ScalarAsync(conn,
+        "SELECT COUNT(*) FROM dbo.Admin_Config WHERE [Key] = 'briefing_channel'"))!;
+    if (chCount == 0)
+        await RunAsync(conn,
+            "INSERT INTO dbo.Admin_Config ([Key], [Value]) VALUES ('briefing_channel', '-5129864639')");
 
     Console.WriteLine("[DB init] Tables ready.");
 }
@@ -271,7 +283,7 @@ string LoginPage(string error = "") => $$"""
     </html>
     """;
 
-string DashboardPage(string briefingTime, string message = "") => $$"""
+string DashboardPage(string briefingTime, string briefingChannel, string message = "") => $$"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -298,10 +310,11 @@ string DashboardPage(string briefingTime, string message = "") => $$"""
         .field { margin-bottom: 1rem; }
         label { display: block; font-size: .8rem; font-weight: 600;
                 color: #555; margin-bottom: .3rem; }
-        input[type=time] { padding: .6rem .8rem; border: 1px solid #ddd;
-                           border-radius: 6px; font-size: 1rem; outline: none; }
-        input[type=time]:focus { border-color: #c0392b;
-                                 box-shadow: 0 0 0 3px rgba(192,57,43,.15); }
+        input[type=time], select { padding: .6rem .8rem; border: 1px solid #ddd;
+                                   border-radius: 6px; font-size: 1rem; outline: none;
+                                   background: #fff; }
+        input[type=time]:focus, select:focus { border-color: #c0392b;
+                                               box-shadow: 0 0 0 3px rgba(192,57,43,.15); }
         .hint { font-size: .78rem; color: #999; margin-top: .3rem; }
         .btn { padding: .6rem 1.4rem; background: #c0392b; color: #fff;
                border: none; border-radius: 6px;
@@ -324,9 +337,16 @@ string DashboardPage(string briefingTime, string message = "") => $$"""
             <div class="field">
               <label for="bt">Send time (Portugal time)</label>
               <input id="bt" type="time" name="briefing_time" value="{{briefingTime}}"/>
-              <div class="hint">
-                Auto_Bot sends the daily checkout / check-in summary to the English channel at this time.
-              </div>
+            </div>
+            <div class="field">
+              <label for="bc">Destination channel</label>
+              <select id="bc" name="briefing_channel">
+                {{Option("-5129864639", "Casa Rosa English",    briefingChannel)}}
+                {{Option("-5186091931", "Casa Rosa Management", briefingChannel)}}
+                {{Option("-5209557963", "Translator",           briefingChannel)}}
+                {{Option("-5271439382", "Rapid Response",       briefingChannel)}}
+              </select>
+              <div class="hint">Auto_Bot will send the daily checkout / check-in summary to this channel.</div>
             </div>
             <button class="btn" type="submit">Save</button>
             {{(string.IsNullOrEmpty(message) ? "" : $"<div class=\"ok\">&#10003; {message}</div>")}}
@@ -336,3 +356,6 @@ string DashboardPage(string briefingTime, string message = "") => $$"""
     </body>
     </html>
     """;
+
+string Option(string value, string label, string selected) =>
+    $"<option value=\"{value}\"{(value == selected ? " selected" : "")}>{label}</option>";

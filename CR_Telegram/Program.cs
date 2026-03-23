@@ -570,7 +570,24 @@ async Task<TimeOnly> GetBriefingTimeAsync()
         }
     }
     catch { }
-    return new TimeOnly(18, 0); // fallback default
+    return new TimeOnly(18, 0);
+}
+
+async Task<long> GetBriefingChannelAsync()
+{
+    try
+    {
+        var url  = $"{adminApiBaseUrl}/api/config/briefing_channel?Token={adminApiToken}";
+        var resp = await httpClient.GetAsync(url);
+        if (resp.IsSuccessStatusCode)
+        {
+            var json  = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var value = json.GetProperty("value").GetString() ?? "";
+            if (long.TryParse(value, out var id)) return id;
+        }
+    }
+    catch { }
+    return CasaRosaEnglishGroupId; // fallback default
 }
 
 async Task SendDailyBriefingAsync()
@@ -621,9 +638,10 @@ async Task SendDailyBriefingAsync()
         return;
     }
 
-    var msg = string.Join("\n", lines);
-    await autoBot.SendMessage(CasaRosaEnglishGroupId, msg);
-    Console.WriteLine($"[Briefing] Sent:\n{msg}");
+    var channel = await GetBriefingChannelAsync();
+    var msg     = string.Join("\n", lines);
+    await autoBot.SendMessage(channel, msg);
+    Console.WriteLine($"[Briefing] Sent to {channel}:\n{msg}");
 }
 
 // ── Airbnb Q&A functions ──────────────────────────────────────────────────────
