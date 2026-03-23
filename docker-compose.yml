@@ -1,14 +1,56 @@
 version: "3.9"
 services:
-  app:
-    image: cesarpenafiel2/emailchecker:latest
+
+  cr_emailchecker:
+    image: cesarpenafiel2/cr_emailchecker:latest
     ports:
-      - "8237:5000"   # host:container
+      - "8100:8100"
     environment:
-      Imap__Scheme: imaps
-      Imap__Host: imap.gmail.com
-      Imap__Port: "993"
-      Imap__CheckCertificateRevocation: "false"
-      Imap__Username: ${IMAP_USERNAME}
-      Imap__Password: ${IMAP_PASSWORD}
-      Http__AuthToken: ${HTTP_AUTH_TOKEN}
+      Imap__Scheme:                       imaps
+      Imap__Host:                         imap.gmail.com
+      Imap__Port:                         "993"
+      Imap__CheckCertificateRevocation:   "false"
+      Imap__Username:                     ${IMAP_USERNAME}
+      Imap__Password:                     ${IMAP_PASSWORD}
+      Http__AuthToken:                    ${HTTP_AUTH_TOKEN}
+
+  cr_notificationservice:
+    image: cesarpenafiel2/cr_notificationservice:latest
+    ports:
+      - "8101:8101"
+    environment:
+      EmailChecker__BaseUrl:              http://cr_emailchecker:8100
+      EmailChecker__ApiToken:             ${HTTP_AUTH_TOKEN}
+      Webhook__SelfUrl:                   http://cr_notificationservice:8101/notify
+      Webhook__Token:                     ${WEBHOOK_TOKEN}
+    depends_on:
+      - cr_emailchecker
+
+  cr_reservationapi:
+    image: cesarpenafiel2/cr_reservationapi:latest
+    ports:
+      - "8103:8103"
+    environment:
+      Http__AuthToken:            ${RESERVATION_AUTH_TOKEN}
+      Database__ConnectionString: ${CASAROSA_DB_CONNECTION_STRING}
+    networks:
+      - default
+      - mssql_default
+
+  cr_telegram:
+    image: cesarpenafiel2/cr_telegram:latest
+    ports:
+      - "8102:8102"
+    environment:
+      Http__AuthToken:             ${TELEGRAM_HTTP_AUTH_TOKEN}
+      Telegram__CesarBotToken:     ${CESAR_BOT_TOKEN}
+      Telegram__AutoBotToken:      ${AUTO_BOT_TOKEN}
+      Google__ApiKey:              ${GOOGLE_API_KEY}
+      ElevenLabs__ApiKey:          ${ELEVENLABS_API_KEY}
+      Anthropic__ApiKey:           ${ANTHROPIC_API_KEY}
+      OpenAI__ApiKey:              ${OPENAI_API_KEY}
+      Database__ConnectionString:  ${TELEGRAM_DB_CONNECTION_STRING}
+
+networks:
+  mssql_default:
+    external: true
