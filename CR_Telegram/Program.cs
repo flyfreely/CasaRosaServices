@@ -23,7 +23,9 @@ var googleApiKey     = config["Google:ApiKey"]!;
 var elevenLabsApiKey = config["ElevenLabs:ApiKey"]!;
 var anthropicApiKey  = config["Anthropic:ApiKey"]!;
 var openAiApiKey     = config["OpenAI:ApiKey"]!;
-var dbConnectionString = config["Database:ConnectionString"]!;
+var dbConnectionString    = config["Database:ConnectionString"]!;
+var reservationApiBaseUrl = config["ReservationApi:BaseUrl"] ?? "http://localhost:8103";
+var reservationApiToken   = config["ReservationApi:Token"]!;
 
 // ── Bot identifiers ───────────────────────────────────────────────────────────
 const string CesarBotId = "Cesar_bot";
@@ -80,6 +82,25 @@ _ = Task.Run(async () =>
             _ = Task.Run(() => HandleHttpAsync(ctx));
         }
         catch { }
+    }
+});
+
+// ── Daily briefing scheduler (6 PM Portugal time) ────────────────────────────
+_ = Task.Run(async () =>
+{
+    var portugalTz   = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
+    var lastFiredDay = DateOnly.MinValue;
+    while (true)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(1));
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz);
+        var today = DateOnly.FromDateTime(now);
+        if (now.Hour == 18 && now.Minute < 2 && today != lastFiredDay)
+        {
+            lastFiredDay = today;
+            try { await SendDailyBriefingAsync(); }
+            catch (Exception ex) { Console.WriteLine($"[Briefing Error] {ex.Message}"); }
+        }
     }
 });
 
@@ -530,6 +551,61 @@ async Task DispatchWebhooksAsync(long groupId, string sender, string text)
     }
 }
 
+// ── Daily briefing ────────────────────────────────────────────────────────────
+
+async Task SendDailyBriefingAsync()
+{
+    var portugalTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
+    var tomorrow   = DateOnly.FromDateTime(
+                         TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz).AddDays(1));
+    var tomorrowStr = tomorrow.ToString("yyyy-MM-dd");
+
+    var url      = $"{reservationApiBaseUrl}/reservations?Token={reservationApiToken}&date=tomorrow";
+    var response = await httpClient.GetAsync(url);
+    if (!response.IsSuccessStatusCode)
+    {
+        Console.WriteLine($"[Briefing] Reservation API returned {(int)response.StatusCode}");
+        return;
+    }
+
+    var reservations = await response.Content
+        .ReadFromJsonAsync<List<BriefingReservation>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+    if (reservations == null || reservations.Count == 0)
+    {
+        Console.WriteLine("[Briefing] No activity for tomorrow.");
+        return;
+    }
+
+    var lines = new List<string> { "Tomorrow's activity:" };
+
+    for (int apt = 1; apt <= 3; apt++)
+    {
+        var checkout = reservations.FirstOrDefault(r => r.ApartmentNumber == apt && r.CheckOutDate == tomorrowStr);
+        var checkin  = reservations.FirstOrDefault(r => r.ApartmentNumber == apt && r.CheckInDate  == tomorrowStr);
+
+        if (checkout == null && checkin == null) continue;
+
+        var checkoutTime = checkout != null ? "11AM" : "UNBOOKED";
+        var checkinTime  = checkin  != null
+            ? (checkin.Registration?.ArrivalTime ?? "3PM")
+            : "UNBOOKED";
+
+        lines.Add($"Apartment {apt}  Checkout {checkoutTime}  Checkin {checkinTime}");
+    }
+
+    if (lines.Count == 1)
+    {
+        Console.WriteLine("[Briefing] Nothing to report for tomorrow.");
+        return;
+    }
+
+    var msg = string.Join("\n", lines);
+    await autoBot.SendMessage(CasaRosaEnglishGroupId, msg);
+    Console.WriteLine($"[Briefing] Sent:\n{msg}");
+}
+
 // ── Airbnb Q&A functions ──────────────────────────────────────────────────────
 
 async Task<List<(int KbId, float[] Vector)>> LoadEmbeddingsAsync()
@@ -797,3 +873,13 @@ async Task<byte[]> TextToSpeechAsync(string text, string voiceId)
     res.EnsureSuccessStatusCode();
     return await res.Content.ReadAsByteArrayAsync();
 }
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+record BriefingReservation(
+    int ApartmentNumber,
+    string? CheckInDate,
+    string? CheckOutDate,
+    BriefingRegistration? Registration);
+
+record BriefingRegistration(string? ArrivalTime);

@@ -50,6 +50,8 @@ services:
       Anthropic__ApiKey:           ${ANTHROPIC_API_KEY}
       OpenAI__ApiKey:              ${OPENAI_API_KEY}
       Database__ConnectionString:  ${TELEGRAM_DB_CONNECTION_STRING}
+      ReservationApi__BaseUrl:     http://cr_reservationapi:8103
+      ReservationApi__Token:       ${RESERVATION_AUTH_TOKEN}
 
 networks:
   mssql_default:
