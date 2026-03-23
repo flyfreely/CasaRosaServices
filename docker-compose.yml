@@ -52,6 +52,21 @@ services:
       Database__ConnectionString:  ${TELEGRAM_DB_CONNECTION_STRING}
       ReservationApi__BaseUrl:     http://cr_reservationapi:8103
       ReservationApi__Token:       ${RESERVATION_AUTH_TOKEN}
+      AdminApi__BaseUrl:           http://cr_admin:8104
+      AdminApi__Token:             ${ADMIN_AUTH_TOKEN}
+    depends_on:
+      - cr_admin
+
+  cr_admin:
+    image: cesarpenafiel2/cr_admin:latest
+    ports:
+      - "8104:8104"
+    environment:
+      Http__AuthToken:            ${ADMIN_AUTH_TOKEN}
+      Database__ConnectionString: ${CASAROSA_DB_CONNECTION_STRING}
+    networks:
+      - default
+      - mssql_default
 
 networks:
   mssql_default:

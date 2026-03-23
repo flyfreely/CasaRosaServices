@@ -26,6 +26,8 @@ var openAiApiKey     = config["OpenAI:ApiKey"]!;
 var dbConnectionString    = config["Database:ConnectionString"]!;
 var reservationApiBaseUrl = config["ReservationApi:BaseUrl"] ?? "http://localhost:8103";
 var reservationApiToken   = config["ReservationApi:Token"]!;
+var adminApiBaseUrl       = config["AdminApi:BaseUrl"] ?? "http://localhost:8104";
+var adminApiToken         = config["AdminApi:Token"]!;
 
 // ── Bot identifiers ───────────────────────────────────────────────────────────
 const string CesarBotId = "Cesar_bot";
@@ -93,9 +95,10 @@ _ = Task.Run(async () =>
     while (true)
     {
         await Task.Delay(TimeSpan.FromMinutes(1));
-        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz);
-        var today = DateOnly.FromDateTime(now);
-        if (now.Hour == 18 && now.Minute < 2 && today != lastFiredDay)
+        var now       = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz);
+        var today     = DateOnly.FromDateTime(now);
+        var scheduled = await GetBriefingTimeAsync();
+        if (now.Hour == scheduled.Hour && now.Minute == scheduled.Minute && today != lastFiredDay)
         {
             lastFiredDay = today;
             try { await SendDailyBriefingAsync(); }
@@ -552,6 +555,23 @@ async Task DispatchWebhooksAsync(long groupId, string sender, string text)
 }
 
 // ── Daily briefing ────────────────────────────────────────────────────────────
+
+async Task<TimeOnly> GetBriefingTimeAsync()
+{
+    try
+    {
+        var url  = $"{adminApiBaseUrl}/api/config/briefing_time?Token={adminApiToken}";
+        var resp = await httpClient.GetAsync(url);
+        if (resp.IsSuccessStatusCode)
+        {
+            var json  = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var value = json.GetProperty("value").GetString() ?? "18:00";
+            if (TimeOnly.TryParse(value, out var t)) return t;
+        }
+    }
+    catch { }
+    return new TimeOnly(18, 0); // fallback default
+}
 
 async Task SendDailyBriefingAsync()
 {
