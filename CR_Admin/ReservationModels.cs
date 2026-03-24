@@ -1,0 +1,63 @@
+record ReservationRow(
+    int      Id,
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Nights,
+    int      Adults,
+    int      Children,
+    int      Infants,
+    string?  Status,
+    bool     Enabled,
+    bool     Archived);
+
+record ReservationDetail(
+    int      Id,
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Nights,
+    int      Adults,
+    int      Children,
+    int      Infants,
+    string?  Status,
+    bool     Enabled,
+    bool     Archived,
+    bool     Private,
+    string?  PhoneNumber,
+    string?  LivesIn,
+    decimal  NightlyRate,
+    decimal  Payout,
+    decimal  GuestPaid,
+    decimal  CleaningFee,
+    Guid     RegistrationGuid,
+    string?  MessagesUrl);
+
+record RegistrationDetail(
+    int     Id,
+    string  Guid,
+    string? Email,
+    string? ArrivalMethod,
+    string? ArrivalTime,
+    string? FlightNumber,
+    string? ArrivalNotes,
+    bool    EarlyCheckIn,
+    bool    Crib,
+    bool    Sofa,
+    bool    Foldable,
+    string? OtherRequests,
+    string? InvoiceNif,
+    string? InvoiceName,
+    string? InvoiceAddr,
+    string? InvoiceEmail);
+
+record GuestRow(
+    int       Id,
+    int       RegistrationId,
+    string?   Name,
+    string?   Nationality,
+    DateTime? BirthDate);

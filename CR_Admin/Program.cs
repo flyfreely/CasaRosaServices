@@ -33,6 +33,8 @@ for (int i = 0; i < 5; i++)
     }
 }
 
+ReservationDb.Init(connStr);
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -102,6 +104,91 @@ app.MapPost("/logout", async (HttpContext ctx) =>
     await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/");
 });
+
+// ── Reservation routes ────────────────────────────────────────────────────────
+
+// GET /reservations
+app.MapGet("/reservations", async (HttpContext ctx) =>
+{
+    var q      = ctx.Request.Query;
+    var apt    = int.TryParse(q["apt"],    out var a)  ? a  : 0;
+    var status = q["status"].FirstOrDefault() ?? "active";
+    var from   = DateOnly.TryParse(q["from"], out var f) ? f
+                 : DateOnly.FromDateTime(DateTime.Today.AddMonths(-1));
+    var to     = DateOnly.TryParse(q["to"],   out var t) ? t
+                 : DateOnly.FromDateTime(DateTime.Today.AddMonths(3));
+    var rows   = await ReservationDb.ListAsync(apt, from, to, status);
+    return Results.Content(ReservationPages.List(rows, apt, from, to, status), "text/html");
+}).RequireAuthorization();
+
+// GET /reservations/new
+app.MapGet("/reservations/new", () =>
+    Results.Content(ReservationPages.NewForm(), "text/html")
+).RequireAuthorization();
+
+// POST /reservations/new
+app.MapPost("/reservations/new", async (HttpContext ctx) =>
+{
+    var f  = await ctx.Request.ReadFormAsync();
+    var id = await ReservationDb.CreateAsync(f);
+    return Results.Redirect($"/reservations/{id}");
+}).RequireAuthorization();
+
+// GET /reservations/{id}
+app.MapGet("/reservations/{id:int}", async (int id) =>
+{
+    var res = await ReservationDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg    = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
+    var guests = reg is not null ? await ReservationDb.GetGuestsAsync(reg.Id) : new();
+    return Results.Content(ReservationPages.Detail(res, reg, guests, ""), "text/html");
+}).RequireAuthorization();
+
+// POST /reservations/{id}  – save reservation fields
+app.MapPost("/reservations/{id:int}", async (int id, HttpContext ctx) =>
+{
+    var f = await ctx.Request.ReadFormAsync();
+    await ReservationDb.UpdateAsync(id, f);
+    var res    = await ReservationDb.GetAsync(id);
+    var reg    = res is not null ? await ReservationDb.GetRegistrationAsync(res.RegistrationGuid) : null;
+    var guests = reg is not null ? await ReservationDb.GetGuestsAsync(reg.Id) : new();
+    return Results.Content(ReservationPages.Detail(res!, reg, guests, "Saved."), "text/html");
+}).RequireAuthorization();
+
+// POST /reservations/{id}/registration  – create or update registration
+app.MapPost("/reservations/{id:int}/registration", async (int id, HttpContext ctx) =>
+{
+    var f   = await ctx.Request.ReadFormAsync();
+    var res = await ReservationDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+
+    var reg = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
+    if (reg is null)
+        await ReservationDb.CreateRegistrationAsync(res);
+    else
+        await ReservationDb.UpdateRegistrationAsync(f);
+
+    return Results.Redirect($"/reservations/{id}");
+}).RequireAuthorization();
+
+// POST /reservations/{id}/guests  – add guest
+app.MapPost("/reservations/{id:int}/guests", async (int id, HttpContext ctx) =>
+{
+    var f   = await ctx.Request.ReadFormAsync();
+    var res = await ReservationDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
+    if (reg is null) return Results.Redirect($"/reservations/{id}");
+    await ReservationDb.AddGuestAsync(reg.Id, f);
+    return Results.Redirect($"/reservations/{id}");
+}).RequireAuthorization();
+
+// POST /reservations/{id}/guests/{guestId}/delete  – remove guest
+app.MapPost("/reservations/{id:int}/guests/{guestId:int}/delete", async (int id, int guestId) =>
+{
+    await ReservationDb.DeleteGuestAsync(guestId);
+    return Results.Redirect($"/reservations/{id}");
+}).RequireAuthorization();
 
 app.Run();
 
@@ -297,6 +384,9 @@ string DashboardPage(string briefingTime, string briefingChannel, string message
         header { background: #c0392b; color: #fff; padding: 1rem 2rem;
                  display: flex; align-items: center; justify-content: space-between; }
         header .title { font-size: 1.1rem; font-weight: 700; }
+        header nav a { color: rgba(255,255,255,.85); text-decoration: none;
+                        font-size: .9rem; margin-right: 1.2rem; }
+        header nav a:hover { color: #fff; }
         .out-btn { background: rgba(255,255,255,.2); border: none; color: #fff;
                    padding: .4rem .9rem; border-radius: 5px;
                    cursor: pointer; font-size: .9rem; }
@@ -326,6 +416,10 @@ string DashboardPage(string briefingTime, string briefingChannel, string message
     <body>
       <header>
         <div class="title">Casa Rosa Admin</div>
+        <nav>
+          <a href="/dashboard">Settings</a>
+          <a href="/reservations">Reservations</a>
+        </nav>
         <form method="post" action="/logout" style="margin:0">
           <button class="out-btn" type="submit">Sign out</button>
         </form>
