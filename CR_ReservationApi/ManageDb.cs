@@ -1,32 +1,28 @@
 using System.Data;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 
-static class ReservationDb
+static class ManageDb
 {
     static string _cs = "";
     public static void Init(string cs) => _cs = cs;
 
-    // ── Reader helpers ────────────────────────────────────────────────────────
-    static string? S(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? null : v.ToString(); }
-    static bool    B(SqlDataReader r, string c) { var v = r[c]; return v != DBNull.Value && (bool)v; }
-    static int     I(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? 0 : Convert.ToInt32(v); }
-    static decimal M(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? 0m : (decimal)v; }
-    static Guid    G(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? Guid.Empty : (Guid)v; }
-    static DateOnly  D(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? default : DateOnly.FromDateTime(Convert.ToDateTime(v)); }
+    // ── Reader helpers ─────────────────────────────────────────────────────────
+    static string?  S(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? null : v.ToString(); }
+    static bool     B(SqlDataReader r, string c) { var v = r[c]; return v != DBNull.Value && (bool)v; }
+    static int      I(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? 0 : Convert.ToInt32(v); }
+    static decimal  M(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? 0m : (decimal)v; }
+    static Guid     G(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? Guid.Empty : (Guid)v; }
+    static DateOnly D(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? default : DateOnly.FromDateTime(Convert.ToDateTime(v)); }
     static DateTime? DT(SqlDataReader r, string c) { var v = r[c]; return v == DBNull.Value ? null : Convert.ToDateTime(v); }
 
     static SqlParameter DateParam(string name, DateOnly d) =>
         new(name, SqlDbType.Date) { Value = d.ToDateTime(TimeOnly.MinValue) };
 
-    static SqlParameter DateParamN(string name, DateOnly? d) =>
-        new(name, SqlDbType.Date) { Value = d.HasValue ? (object)d.Value.ToDateTime(TimeOnly.MinValue) : DBNull.Value };
-
-    // ── List reservations ─────────────────────────────────────────────────────
-    public static async Task<List<ReservationRow>> ListAsync(
+    // ── List ──────────────────────────────────────────────────────────────────
+    public static async Task<List<ManageReservationRow>> ListAsync(
         int apt, DateOnly from, DateOnly to, string status)
     {
-        var rows = new List<ReservationRow>();
+        var rows = new List<ManageReservationRow>();
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand("""
@@ -57,8 +53,8 @@ static class ReservationDb
         return rows;
     }
 
-    // ── Get single reservation ────────────────────────────────────────────────
-    public static async Task<ReservationDetail?> GetAsync(int id)
+    // ── Get single ────────────────────────────────────────────────────────────
+    public static async Task<ManageReservationDetail?> GetAsync(int id)
     {
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
@@ -82,13 +78,10 @@ static class ReservationDb
             G(rd,"RegistrationGuid"), S(rd,"MessagesUrl"));
     }
 
-    // ── Create reservation ────────────────────────────────────────────────────
-    public static async Task<int> CreateAsync(IFormCollection f)
+    // ── Create ────────────────────────────────────────────────────────────────
+    public static async Task<int> CreateAsync(ReservationCreateRequest req)
     {
-        var checkin  = DateOnly.Parse(f["checkin"].ToString());
-        var checkout = DateOnly.Parse(f["checkout"].ToString());
-        var nights   = checkout.DayNumber - checkin.DayNumber;
-
+        var nights = req.CheckOutDate.DayNumber - req.CheckInDate.DayNumber;
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand("""
@@ -106,73 +99,70 @@ static class ReservationDb
                  @adults, @children, @infants);
             SELECT SCOPE_IDENTITY();
             """, conn);
-        cmd.Parameters.AddWithValue("@apt",      int.Parse(f["apartment"].ToString()));
-        cmd.Parameters.AddWithValue("@code",     f["code"].ToString());
-        cmd.Parameters.AddWithValue("@status",   string.IsNullOrEmpty(f["status"]) ? "confirmed" : f["status"].ToString());
+        cmd.Parameters.AddWithValue("@apt",      req.ApartmentNumber);
+        cmd.Parameters.AddWithValue("@code",     req.ConfirmationCode ?? "");
+        cmd.Parameters.AddWithValue("@status",   string.IsNullOrEmpty(req.Status) ? "confirmed" : req.Status);
         cmd.Parameters.AddWithValue("@nights",   nights);
-        cmd.Parameters.AddWithValue("@name",     f["name"].ToString());
-        cmd.Parameters.Add(DateParam("@checkin",  checkin));
-        cmd.Parameters.Add(DateParam("@checkout", checkout));
-        cmd.Parameters.AddWithValue("@adults",   int.TryParse(f["adults"],   out var a) ? a : 0);
-        cmd.Parameters.AddWithValue("@children", int.TryParse(f["children"], out var c) ? c : 0);
-        cmd.Parameters.AddWithValue("@infants",  int.TryParse(f["infants"],  out var i) ? i : 0);
+        cmd.Parameters.AddWithValue("@name",     req.ReservationName);
+        cmd.Parameters.Add(DateParam("@checkin",  req.CheckInDate));
+        cmd.Parameters.Add(DateParam("@checkout", req.CheckOutDate));
+        cmd.Parameters.AddWithValue("@adults",   req.Adults);
+        cmd.Parameters.AddWithValue("@children", req.Children);
+        cmd.Parameters.AddWithValue("@infants",  req.Infants);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
-    // ── Update reservation ────────────────────────────────────────────────────
-    public static async Task UpdateAsync(int id, IFormCollection f)
+    // ── Update ────────────────────────────────────────────────────────────────
+    public static async Task UpdateAsync(int id, ReservationUpdateRequest req)
     {
-        var checkin  = DateOnly.Parse(f["checkin"].ToString());
-        var checkout = DateOnly.Parse(f["checkout"].ToString());
-        var nights   = checkout.DayNumber - checkin.DayNumber;
-
+        var nights = req.CheckOutDate.DayNumber - req.CheckInDate.DayNumber;
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand("""
             UPDATE Reservation SET
-                ModifiedAt      = GETUTCDATE(),
-                ApartmentNumber = @apt,
-                ReservationName = @name,
+                ModifiedAt       = GETUTCDATE(),
+                ApartmentNumber  = @apt,
+                ReservationName  = @name,
                 ConfirmationCode = @code,
-                Status          = @status,
-                CheckInDate     = @checkin,
-                CheckOutDate    = @checkout,
-                Nights          = @nights,
-                Adults          = @adults,
-                Children        = @children,
-                Infants         = @infants,
-                PhoneNumber     = @phone,
-                LivesIn         = @livesIn,
-                NightlyRate     = @rate,
-                CleaningFee     = @cleaning,
-                Enabled         = @enabled,
-                Archived        = @archived,
-                Private         = @private
+                Status           = @status,
+                CheckInDate      = @checkin,
+                CheckOutDate     = @checkout,
+                Nights           = @nights,
+                Adults           = @adults,
+                Children         = @children,
+                Infants          = @infants,
+                PhoneNumber      = @phone,
+                LivesIn          = @livesIn,
+                NightlyRate      = @rate,
+                CleaningFee      = @cleaning,
+                Enabled          = @enabled,
+                Archived         = @archived,
+                Private          = @private
             WHERE Id = @id
             """, conn);
         cmd.Parameters.AddWithValue("@id",       id);
-        cmd.Parameters.AddWithValue("@apt",      int.Parse(f["apartment"].ToString()));
-        cmd.Parameters.AddWithValue("@name",     f["name"].ToString());
-        cmd.Parameters.AddWithValue("@code",     f["code"].ToString());
-        cmd.Parameters.AddWithValue("@status",   f["status"].ToString());
-        cmd.Parameters.Add(DateParam("@checkin",  checkin));
-        cmd.Parameters.Add(DateParam("@checkout", checkout));
+        cmd.Parameters.AddWithValue("@apt",      req.ApartmentNumber);
+        cmd.Parameters.AddWithValue("@name",     req.ReservationName);
+        cmd.Parameters.AddWithValue("@code",     req.ConfirmationCode ?? "");
+        cmd.Parameters.AddWithValue("@status",   req.Status ?? "");
+        cmd.Parameters.Add(DateParam("@checkin",  req.CheckInDate));
+        cmd.Parameters.Add(DateParam("@checkout", req.CheckOutDate));
         cmd.Parameters.AddWithValue("@nights",   nights);
-        cmd.Parameters.AddWithValue("@adults",   int.TryParse(f["adults"],   out var a) ? a : 0);
-        cmd.Parameters.AddWithValue("@children", int.TryParse(f["children"], out var c) ? c : 0);
-        cmd.Parameters.AddWithValue("@infants",  int.TryParse(f["infants"],  out var i) ? i : 0);
-        cmd.Parameters.AddWithValue("@phone",    f["phone"].ToString());
-        cmd.Parameters.AddWithValue("@livesIn",  f["livesIn"].ToString());
-        cmd.Parameters.AddWithValue("@rate",     decimal.TryParse(f["rate"],     out var r) ? r : 0m);
-        cmd.Parameters.AddWithValue("@cleaning", decimal.TryParse(f["cleaning"], out var cl) ? cl : 0m);
-        cmd.Parameters.AddWithValue("@enabled",  f["enabled"].ToString() == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@archived", f["archived"].ToString() == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@private",  f["private"].ToString() == "on" ? 1 : 0);
+        cmd.Parameters.AddWithValue("@adults",   req.Adults);
+        cmd.Parameters.AddWithValue("@children", req.Children);
+        cmd.Parameters.AddWithValue("@infants",  req.Infants);
+        cmd.Parameters.AddWithValue("@phone",    req.PhoneNumber ?? "");
+        cmd.Parameters.AddWithValue("@livesIn",  req.LivesIn ?? "");
+        cmd.Parameters.AddWithValue("@rate",     req.NightlyRate);
+        cmd.Parameters.AddWithValue("@cleaning", req.CleaningFee);
+        cmd.Parameters.AddWithValue("@enabled",  req.Enabled  ? 1 : 0);
+        cmd.Parameters.AddWithValue("@archived", req.Archived ? 1 : 0);
+        cmd.Parameters.AddWithValue("@private",  req.Private  ? 1 : 0);
         await cmd.ExecuteNonQueryAsync();
     }
 
     // ── Get registration ──────────────────────────────────────────────────────
-    public static async Task<RegistrationDetail?> GetRegistrationAsync(Guid regGuid)
+    public static async Task<ManageRegistrationDetail?> GetRegistrationAsync(Guid regGuid)
     {
         if (regGuid == Guid.Empty) return null;
         using var conn = new SqlConnection(_cs);
@@ -197,7 +187,7 @@ static class ReservationDb
     }
 
     // ── Create registration ───────────────────────────────────────────────────
-    public static async Task CreateRegistrationAsync(ReservationDetail res)
+    public static async Task CreateRegistrationAsync(ManageReservationDetail res)
     {
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
@@ -221,7 +211,7 @@ static class ReservationDb
     }
 
     // ── Update registration ───────────────────────────────────────────────────
-    public static async Task UpdateRegistrationAsync(IFormCollection f)
+    public static async Task UpdateRegistrationAsync(int regId, RegistrationWriteRequest req)
     {
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
@@ -243,28 +233,28 @@ static class ReservationDb
                 InvoiceEmailAddress = @invEmail
             WHERE Id = @id
             """, conn);
-        cmd.Parameters.AddWithValue("@id",       int.Parse(f["regId"].ToString()));
-        cmd.Parameters.AddWithValue("@email",    f["email"].ToString());
-        cmd.Parameters.AddWithValue("@method",   f["arrivalMethod"].ToString());
-        cmd.Parameters.AddWithValue("@time",     f["arrivalTime"].ToString());
-        cmd.Parameters.AddWithValue("@flight",   f["flight"].ToString());
-        cmd.Parameters.AddWithValue("@notes",    f["arrivalNotes"].ToString());
-        cmd.Parameters.AddWithValue("@earlyCI",  f["earlyCI"].ToString() == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@crib",     f["crib"].ToString()    == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@sofa",     f["sofa"].ToString()    == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@foldable", f["foldable"].ToString() == "on" ? 1 : 0);
-        cmd.Parameters.AddWithValue("@other",    f["otherRequests"].ToString());
-        cmd.Parameters.AddWithValue("@nif",      f["invoiceNif"].ToString());
-        cmd.Parameters.AddWithValue("@invName",  f["invoiceName"].ToString());
-        cmd.Parameters.AddWithValue("@invAddr",  f["invoiceAddr"].ToString());
-        cmd.Parameters.AddWithValue("@invEmail", f["invoiceEmail"].ToString());
+        cmd.Parameters.AddWithValue("@id",       regId);
+        cmd.Parameters.AddWithValue("@email",    req.Email    ?? "");
+        cmd.Parameters.AddWithValue("@method",   req.ArrivalMethod ?? "");
+        cmd.Parameters.AddWithValue("@time",     req.ArrivalTime   ?? "");
+        cmd.Parameters.AddWithValue("@flight",   req.FlightNumber  ?? "");
+        cmd.Parameters.AddWithValue("@notes",    req.ArrivalNotes  ?? "");
+        cmd.Parameters.AddWithValue("@earlyCI",  req.EarlyCheckIn ? 1 : 0);
+        cmd.Parameters.AddWithValue("@crib",     req.Crib     ? 1 : 0);
+        cmd.Parameters.AddWithValue("@sofa",     req.Sofa     ? 1 : 0);
+        cmd.Parameters.AddWithValue("@foldable", req.Foldable ? 1 : 0);
+        cmd.Parameters.AddWithValue("@other",    req.OtherRequests ?? "");
+        cmd.Parameters.AddWithValue("@nif",      req.InvoiceNif    ?? "");
+        cmd.Parameters.AddWithValue("@invName",  req.InvoiceName   ?? "");
+        cmd.Parameters.AddWithValue("@invAddr",  req.InvoiceAddr   ?? "");
+        cmd.Parameters.AddWithValue("@invEmail", req.InvoiceEmail  ?? "");
         await cmd.ExecuteNonQueryAsync();
     }
 
     // ── Guests ────────────────────────────────────────────────────────────────
-    public static async Task<List<GuestRow>> GetGuestsAsync(int regId)
+    public static async Task<List<ManageGuestRow>> GetGuestsAsync(int regId)
     {
-        var list = new List<GuestRow>();
+        var list = new List<ManageGuestRow>();
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand(
@@ -277,7 +267,7 @@ static class ReservationDb
         return list;
     }
 
-    public static async Task AddGuestAsync(int regId, IFormCollection f)
+    public static async Task AddGuestAsync(int regId, GuestWriteRequest req)
     {
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
@@ -286,10 +276,9 @@ static class ReservationDb
             VALUES (@regId, @name, @nat, @dob)
             """, conn);
         cmd.Parameters.AddWithValue("@regId", regId);
-        cmd.Parameters.AddWithValue("@name",  f["guestName"].ToString());
-        cmd.Parameters.AddWithValue("@nat",   f["guestNat"].ToString());
-        var dobStr = f["guestDob"].ToString();
-        if (DateTime.TryParse(dobStr, out var dob))
+        cmd.Parameters.AddWithValue("@name",  req.Name        ?? "");
+        cmd.Parameters.AddWithValue("@nat",   req.Nationality ?? "");
+        if (DateTime.TryParse(req.BirthDate, out var dob))
             cmd.Parameters.AddWithValue("@dob", dob);
         else
             cmd.Parameters.AddWithValue("@dob", DBNull.Value);

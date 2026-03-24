@@ -1,0 +1,112 @@
+// ── Management response models ────────────────────────────────────────────────
+record ManageReservationRow(
+    int      Id,
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Nights,
+    int      Adults,
+    int      Children,
+    int      Infants,
+    string?  Status,
+    bool     Enabled,
+    bool     Archived);
+
+record ManageReservationDetail(
+    int      Id,
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Nights,
+    int      Adults,
+    int      Children,
+    int      Infants,
+    string?  Status,
+    bool     Enabled,
+    bool     Archived,
+    bool     Private,
+    string?  PhoneNumber,
+    string?  LivesIn,
+    decimal  NightlyRate,
+    decimal  Payout,
+    decimal  GuestPaid,
+    decimal  CleaningFee,
+    Guid     RegistrationGuid,
+    string?  MessagesUrl);
+
+record ManageRegistrationDetail(
+    int     Id,
+    string  Guid,
+    string? Email,
+    string? ArrivalMethod,
+    string? ArrivalTime,
+    string? FlightNumber,
+    string? ArrivalNotes,
+    bool    EarlyCheckIn,
+    bool    Crib,
+    bool    Sofa,
+    bool    Foldable,
+    string? OtherRequests,
+    string? InvoiceNif,
+    string? InvoiceName,
+    string? InvoiceAddr,
+    string? InvoiceEmail);
+
+record ManageGuestRow(
+    int       Id,
+    int       RegistrationId,
+    string?   Name,
+    string?   Nationality,
+    DateTime? BirthDate);
+
+// ── Write request models ──────────────────────────────────────────────────────
+record ReservationCreateRequest(
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    string?  Status,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Adults,
+    int      Children,
+    int      Infants);
+
+record ReservationUpdateRequest(
+    int      ApartmentNumber,
+    string   ReservationName,
+    string?  ConfirmationCode,
+    string?  Status,
+    DateOnly CheckInDate,
+    DateOnly CheckOutDate,
+    int      Adults,
+    int      Children,
+    int      Infants,
+    string?  PhoneNumber,
+    string?  LivesIn,
+    decimal  NightlyRate,
+    decimal  CleaningFee,
+    bool     Enabled,
+    bool     Archived,
+    bool     Private);
+
+record RegistrationWriteRequest(
+    string? Email,
+    string? ArrivalMethod,
+    string? ArrivalTime,
+    string? FlightNumber,
+    string? ArrivalNotes,
+    bool    EarlyCheckIn,
+    bool    Crib,
+    bool    Sofa,
+    bool    Foldable,
+    string? OtherRequests,
+    string? InvoiceNif,
+    string? InvoiceName,
+    string? InvoiceAddr,
+    string? InvoiceEmail);
+
+record GuestWriteRequest(string? Name, string? Nationality, string? BirthDate);

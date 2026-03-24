@@ -62,11 +62,15 @@ services:
     ports:
       - "8104:8104"
     environment:
-      Http__AuthToken:            ${ADMIN_AUTH_TOKEN}
-      Database__ConnectionString: ${CASAROSA_DB_CONNECTION_STRING}
+      Http__AuthToken:              ${ADMIN_AUTH_TOKEN}
+      Database__ConnectionString:   ${CASAROSA_DB_CONNECTION_STRING}
+      ReservationApi__BaseUrl:      http://cr_reservationapi:8103
+      ReservationApi__Token:        ${RESERVATION_AUTH_TOKEN}
     networks:
       - default
       - mssql_default
+    depends_on:
+      - cr_reservationapi
 
 networks:
   mssql_default:

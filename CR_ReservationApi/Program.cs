@@ -7,6 +7,8 @@ var app     = builder.Build();
 var connStr   = builder.Configuration["Database:ConnectionString"]!;
 var authToken = builder.Configuration["Http:AuthToken"]!;
 
+ManageDb.Init(connStr);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 app.Use(async (ctx, next) =>
 {
@@ -26,6 +28,80 @@ app.MapGet("/checkin", async (string? apartment, string? date) =>
 
 app.MapGet("/checkout", async (string? apartment, string? date) =>
     await HandleAsync(connStr, apartment, date, "checkout"));
+
+// ── Manage endpoints (CRUD) ───────────────────────────────────────────────────
+
+app.MapGet("/manage/reservations", async (int? apt, string? from, string? to, string? status) =>
+{
+    var aptVal    = apt ?? 0;
+    var fromVal   = from    is not null ? DateOnly.Parse(from)   : DateOnly.FromDateTime(DateTime.Today.AddMonths(-1));
+    var toVal     = to      is not null ? DateOnly.Parse(to)     : DateOnly.FromDateTime(DateTime.Today.AddMonths(3));
+    var statusVal = status  ?? "active";
+    return Results.Ok(await ManageDb.ListAsync(aptVal, fromVal, toVal, statusVal));
+});
+
+app.MapGet("/manage/reservations/{id:int}", async (int id) =>
+{
+    var res = await ManageDb.GetAsync(id);
+    return res is null ? Results.NotFound() : Results.Ok(res);
+});
+
+app.MapPost("/manage/reservations", async (ReservationCreateRequest req) =>
+{
+    var id = await ManageDb.CreateAsync(req);
+    return Results.Ok(new { id });
+});
+
+app.MapPost("/manage/reservations/{id:int}", async (int id, ReservationUpdateRequest req) =>
+{
+    await ManageDb.UpdateAsync(id, req);
+    return Results.Ok();
+});
+
+app.MapGet("/manage/reservations/{id:int}/registration", async (int id) =>
+{
+    var res = await ManageDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg = await ManageDb.GetRegistrationAsync(res.RegistrationGuid);
+    return reg is null ? Results.NotFound() : Results.Ok(reg);
+});
+
+app.MapPost("/manage/reservations/{id:int}/registration", async (int id, RegistrationWriteRequest? req) =>
+{
+    var res = await ManageDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg = await ManageDb.GetRegistrationAsync(res.RegistrationGuid);
+    if (reg is null)
+        await ManageDb.CreateRegistrationAsync(res);
+    else if (req is not null)
+        await ManageDb.UpdateRegistrationAsync(reg.Id, req);
+    return Results.Ok();
+});
+
+app.MapGet("/manage/reservations/{id:int}/guests", async (int id) =>
+{
+    var res = await ManageDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg = await ManageDb.GetRegistrationAsync(res.RegistrationGuid);
+    if (reg is null) return Results.Ok(new List<ManageGuestRow>());
+    return Results.Ok(await ManageDb.GetGuestsAsync(reg.Id));
+});
+
+app.MapPost("/manage/reservations/{id:int}/guests", async (int id, GuestWriteRequest req) =>
+{
+    var res = await ManageDb.GetAsync(id);
+    if (res is null) return Results.NotFound();
+    var reg = await ManageDb.GetRegistrationAsync(res.RegistrationGuid);
+    if (reg is null) return Results.BadRequest("No registration exists for this reservation.");
+    await ManageDb.AddGuestAsync(reg.Id, req);
+    return Results.Ok();
+});
+
+app.MapPost("/manage/reservations/{id:int}/guests/{guestId:int}/delete", async (int id, int guestId) =>
+{
+    await ManageDb.DeleteGuestAsync(guestId);
+    return Results.Ok();
+});
 
 app.Run();
 

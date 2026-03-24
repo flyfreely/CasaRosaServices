@@ -1,13 +1,19 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Data.SqlClient;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connStr  = builder.Configuration["Database:ConnectionString"]!;
-var apiToken = builder.Configuration["Http:AuthToken"]!;
+var connStr      = builder.Configuration["Database:ConnectionString"]!;
+var apiToken     = builder.Configuration["Http:AuthToken"]!;
+var resApiBase   = builder.Configuration["ReservationApi:BaseUrl"] ?? "http://localhost:8103";
+var resApiToken  = builder.Configuration["ReservationApi:Token"]  ?? "";
+var resHttp      = new HttpClient();
+var jsonOpts     = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -32,8 +38,6 @@ for (int i = 0; i < 5; i++)
         await Task.Delay(5_000);
     }
 }
-
-ReservationDb.Init(connStr);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -105,20 +109,26 @@ app.MapPost("/logout", async (HttpContext ctx) =>
     return Results.Redirect("/");
 });
 
-// ── Reservation routes ────────────────────────────────────────────────────────
+// ── Reservation routes (proxied to CR_ReservationApi) ─────────────────────────
+
+string ResUrl(string path) => $"{resApiBase}{path}?token={resApiToken}";
+string ResUrlQ(string path, string qs) => $"{resApiBase}{path}?token={resApiToken}&{qs}";
 
 // GET /reservations
 app.MapGet("/reservations", async (HttpContext ctx) =>
 {
     var q      = ctx.Request.Query;
-    var apt    = int.TryParse(q["apt"],    out var a)  ? a  : 0;
+    var apt    = q["apt"].FirstOrDefault()    ?? "0";
     var status = q["status"].FirstOrDefault() ?? "active";
-    var from   = DateOnly.TryParse(q["from"], out var f) ? f
-                 : DateOnly.FromDateTime(DateTime.Today.AddMonths(-1));
-    var to     = DateOnly.TryParse(q["to"],   out var t) ? t
-                 : DateOnly.FromDateTime(DateTime.Today.AddMonths(3));
-    var rows   = await ReservationDb.ListAsync(apt, from, to, status);
-    return Results.Content(ReservationPages.List(rows, apt, from, to, status), "text/html");
+    var from   = q["from"].FirstOrDefault()   ?? DateTime.Today.AddMonths(-1).ToString("yyyy-MM-dd");
+    var to     = q["to"].FirstOrDefault()     ?? DateTime.Today.AddMonths(3).ToString("yyyy-MM-dd");
+    var rows   = await resHttp.GetFromJsonAsync<List<ReservationRow>>(
+                     ResUrlQ("/manage/reservations", $"apt={apt}&from={from}&to={to}&status={status}"),
+                     jsonOpts) ?? new();
+    var aptInt = int.TryParse(apt, out var a) ? a : 0;
+    return Results.Content(
+        ReservationPages.List(rows, aptInt, DateOnly.Parse(from), DateOnly.Parse(to), status),
+        "text/html");
 }).RequireAuthorization();
 
 // GET /reservations/new
@@ -129,64 +139,122 @@ app.MapGet("/reservations/new", () =>
 // POST /reservations/new
 app.MapPost("/reservations/new", async (HttpContext ctx) =>
 {
-    var f  = await ctx.Request.ReadFormAsync();
-    var id = await ReservationDb.CreateAsync(f);
+    var f        = await ctx.Request.ReadFormAsync();
+    var checkin  = DateOnly.Parse(f["checkin"].ToString());
+    var checkout = DateOnly.Parse(f["checkout"].ToString());
+    var req = new
+    {
+        ApartmentNumber  = int.Parse(f["apartment"].ToString()),
+        ReservationName  = f["name"].ToString(),
+        ConfirmationCode = f["code"].ToString(),
+        Status           = f["status"].ToString(),
+        CheckInDate      = checkin,
+        CheckOutDate     = checkout,
+        Adults           = int.TryParse(f["adults"],   out var a) ? a : 0,
+        Children         = int.TryParse(f["children"], out var c) ? c : 0,
+        Infants          = int.TryParse(f["infants"],  out var i) ? i : 0,
+    };
+    var resp = await resHttp.PostAsJsonAsync(ResUrl("/manage/reservations"), req, jsonOpts);
+    var body = await resp.Content.ReadFromJsonAsync<JsonElement>(jsonOpts);
+    var id   = body.GetProperty("id").GetInt32();
     return Results.Redirect($"/reservations/{id}");
 }).RequireAuthorization();
 
 // GET /reservations/{id}
 app.MapGet("/reservations/{id:int}", async (int id) =>
 {
-    var res = await ReservationDb.GetAsync(id);
+    var res = await resHttp.GetFromJsonAsync<ReservationDetail>(ResUrl($"/manage/reservations/{id}"), jsonOpts);
     if (res is null) return Results.NotFound();
-    var reg    = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
-    var guests = reg is not null ? await ReservationDb.GetGuestsAsync(reg.Id) : new();
+    var regResp = await resHttp.GetAsync(ResUrl($"/manage/reservations/{id}/registration"));
+    var reg     = regResp.IsSuccessStatusCode
+                  ? await regResp.Content.ReadFromJsonAsync<RegistrationDetail>(jsonOpts)
+                  : null;
+    var guests  = reg is not null
+                  ? await resHttp.GetFromJsonAsync<List<GuestRow>>(ResUrl($"/manage/reservations/{id}/guests"), jsonOpts) ?? new()
+                  : new List<GuestRow>();
     return Results.Content(ReservationPages.Detail(res, reg, guests, ""), "text/html");
 }).RequireAuthorization();
 
-// POST /reservations/{id}  – save reservation fields
+// POST /reservations/{id}
 app.MapPost("/reservations/{id:int}", async (int id, HttpContext ctx) =>
 {
-    var f = await ctx.Request.ReadFormAsync();
-    await ReservationDb.UpdateAsync(id, f);
-    var res    = await ReservationDb.GetAsync(id);
-    var reg    = res is not null ? await ReservationDb.GetRegistrationAsync(res.RegistrationGuid) : null;
-    var guests = reg is not null ? await ReservationDb.GetGuestsAsync(reg.Id) : new();
+    var f        = await ctx.Request.ReadFormAsync();
+    var checkin  = DateOnly.Parse(f["checkin"].ToString());
+    var checkout = DateOnly.Parse(f["checkout"].ToString());
+    var req = new
+    {
+        ApartmentNumber  = int.Parse(f["apartment"].ToString()),
+        ReservationName  = f["name"].ToString(),
+        ConfirmationCode = f["code"].ToString(),
+        Status           = f["status"].ToString(),
+        CheckInDate      = checkin,
+        CheckOutDate     = checkout,
+        Adults           = int.TryParse(f["adults"],   out var a) ? a : 0,
+        Children         = int.TryParse(f["children"], out var c) ? c : 0,
+        Infants          = int.TryParse(f["infants"],  out var i) ? i : 0,
+        PhoneNumber      = f["phone"].ToString(),
+        LivesIn          = f["livesIn"].ToString(),
+        NightlyRate      = decimal.TryParse(f["rate"],     out var r)  ? r  : 0m,
+        CleaningFee      = decimal.TryParse(f["cleaning"], out var cl) ? cl : 0m,
+        Enabled          = f["enabled"].ToString()  == "on",
+        Archived         = f["archived"].ToString() == "on",
+        Private          = f["private"].ToString()  == "on",
+    };
+    await resHttp.PostAsJsonAsync(ResUrl($"/manage/reservations/{id}"), req, jsonOpts);
+    var res    = await resHttp.GetFromJsonAsync<ReservationDetail>(ResUrl($"/manage/reservations/{id}"), jsonOpts);
+    var regResp = await resHttp.GetAsync(ResUrl($"/manage/reservations/{id}/registration"));
+    var reg    = regResp.IsSuccessStatusCode
+                 ? await regResp.Content.ReadFromJsonAsync<RegistrationDetail>(jsonOpts)
+                 : null;
+    var guests = reg is not null
+                 ? await resHttp.GetFromJsonAsync<List<GuestRow>>(ResUrl($"/manage/reservations/{id}/guests"), jsonOpts) ?? new()
+                 : new List<GuestRow>();
     return Results.Content(ReservationPages.Detail(res!, reg, guests, "Saved."), "text/html");
 }).RequireAuthorization();
 
-// POST /reservations/{id}/registration  – create or update registration
+// POST /reservations/{id}/registration
 app.MapPost("/reservations/{id:int}/registration", async (int id, HttpContext ctx) =>
 {
     var f   = await ctx.Request.ReadFormAsync();
-    var res = await ReservationDb.GetAsync(id);
-    if (res is null) return Results.NotFound();
-
-    var reg = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
-    if (reg is null)
-        await ReservationDb.CreateRegistrationAsync(res);
-    else
-        await ReservationDb.UpdateRegistrationAsync(f);
-
+    var req = new
+    {
+        Email         = f["email"].ToString(),
+        ArrivalMethod = f["arrivalMethod"].ToString(),
+        ArrivalTime   = f["arrivalTime"].ToString(),
+        FlightNumber  = f["flight"].ToString(),
+        ArrivalNotes  = f["arrivalNotes"].ToString(),
+        EarlyCheckIn  = f["earlyCI"].ToString()   == "on",
+        Crib          = f["crib"].ToString()      == "on",
+        Sofa          = f["sofa"].ToString()      == "on",
+        Foldable      = f["foldable"].ToString()  == "on",
+        OtherRequests = f["otherRequests"].ToString(),
+        InvoiceNif    = f["invoiceNif"].ToString(),
+        InvoiceName   = f["invoiceName"].ToString(),
+        InvoiceAddr   = f["invoiceAddr"].ToString(),
+        InvoiceEmail  = f["invoiceEmail"].ToString(),
+    };
+    await resHttp.PostAsJsonAsync(ResUrl($"/manage/reservations/{id}/registration"), req, jsonOpts);
     return Results.Redirect($"/reservations/{id}");
 }).RequireAuthorization();
 
-// POST /reservations/{id}/guests  – add guest
+// POST /reservations/{id}/guests
 app.MapPost("/reservations/{id:int}/guests", async (int id, HttpContext ctx) =>
 {
     var f   = await ctx.Request.ReadFormAsync();
-    var res = await ReservationDb.GetAsync(id);
-    if (res is null) return Results.NotFound();
-    var reg = await ReservationDb.GetRegistrationAsync(res.RegistrationGuid);
-    if (reg is null) return Results.Redirect($"/reservations/{id}");
-    await ReservationDb.AddGuestAsync(reg.Id, f);
+    var req = new
+    {
+        Name        = f["guestName"].ToString(),
+        Nationality = f["guestNat"].ToString(),
+        BirthDate   = f["guestDob"].ToString(),
+    };
+    await resHttp.PostAsJsonAsync(ResUrl($"/manage/reservations/{id}/guests"), req, jsonOpts);
     return Results.Redirect($"/reservations/{id}");
 }).RequireAuthorization();
 
-// POST /reservations/{id}/guests/{guestId}/delete  – remove guest
+// POST /reservations/{id}/guests/{guestId}/delete
 app.MapPost("/reservations/{id:int}/guests/{guestId:int}/delete", async (int id, int guestId) =>
 {
-    await ReservationDb.DeleteGuestAsync(guestId);
+    await resHttp.PostAsync(ResUrl($"/manage/reservations/{id}/guests/{guestId}/delete"), null);
     return Results.Redirect($"/reservations/{id}");
 }).RequireAuthorization();
 
