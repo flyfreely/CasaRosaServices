@@ -1443,13 +1443,14 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         if (!string.IsNullOrWhiteSpace(arrivalMethod))
         {
             var methodIcon = arrivalMethod.ToLower() switch {
-                var s when s.Contains("airport") || s.Contains("flight") => "✈️",
-                var s when s.Contains("car") || s.Contains("rental")     => "🚗",
-                var s when s.Contains("train")                           => "🚂",
-                var s when s.Contains("bus")                             => "🚌",
-                var s when s.Contains("ferry") || s.Contains("boat")    => "⛴️",
-                var s when s.Contains("self")                            => "🔑",
-                _                                                        => "🚍"
+                var s when s.Contains("airport") || s.Contains("flight")                    => "✈️",
+                var s when s.Contains("car") || s.Contains("rental") || s.Contains("driv")
+                        || s.Contains("taxi")                                               => "🚗",
+                var s when s.Contains("train")                                              => "🚂",
+                var s when s.Contains("bus") || s.Contains("public")                       => "🚌",
+                var s when s.Contains("ferry") || s.Contains("boat")                       => "⛴️",
+                var s when s.Contains("self")                                               => "🔑",
+                _                                                                           => "🚗"
             };
             sb.Append($"<span class='cal-tag'>{methodIcon} {System.Net.WebUtility.HtmlEncode(arrivalMethod)}</span>");
         }
