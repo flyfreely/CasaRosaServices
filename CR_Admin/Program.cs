@@ -144,7 +144,9 @@ app.MapGet("/dashboard", async (HttpContext ctx) =>
     var todayChannel       = await GetConfigAsync("today_briefing_channel")     ?? "-5129864639";
     var tripleTime         = await GetConfigAsync("triple_cleaning_time")       ?? "08:00";
     var tripleChannel      = await GetConfigAsync("triple_cleaning_channel")    ?? "-5186091931";
-    return Results.Content(DashboardPage(tomorrowTime, tomorrowChannel, todayTime, todayChannel, tripleTime, tripleChannel, isAdmin: IsAdmin(ctx), lang: lang), "text/html");
+    var cribTime           = await GetConfigAsync("crib_alert_time")            ?? "08:00";
+    var cribChannel        = await GetConfigAsync("crib_alert_channel")         ?? "-5186091931";
+    return Results.Content(DashboardPage(tomorrowTime, tomorrowChannel, todayTime, todayChannel, tripleTime, tripleChannel, cribTime, cribChannel, isAdmin: IsAdmin(ctx), lang: lang), "text/html");
 }).RequireAuthorization();
 
 // POST /dashboard
@@ -159,20 +161,26 @@ app.MapPost("/dashboard", async (HttpContext ctx) =>
     var todayChannel    = form["today_channel"].ToString();
     var tripleTime      = form["triple_time"].ToString();
     var tripleChannel   = form["triple_channel"].ToString();
+    var cribTime        = form["crib_time"].ToString();
+    var cribChannel     = form["crib_channel"].ToString();
     if (!TimeOnly.TryParse(tomorrowTime,  out _)) tomorrowTime  = "18:00";
     if (!long.TryParse(tomorrowChannel,   out _)) tomorrowChannel = "-5129864639";
     if (!TimeOnly.TryParse(todayTime,     out _)) todayTime     = "09:00";
     if (!long.TryParse(todayChannel,      out _)) todayChannel  = "-5129864639";
     if (!TimeOnly.TryParse(tripleTime,    out _)) tripleTime    = "08:00";
     if (!long.TryParse(tripleChannel,     out _)) tripleChannel = "-5186091931";
+    if (!TimeOnly.TryParse(cribTime,      out _)) cribTime      = "08:00";
+    if (!long.TryParse(cribChannel,       out _)) cribChannel   = "-5186091931";
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/briefing_time"),           new { value = tomorrowTime  }, jsonOpts);
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/briefing_channel"),        new { value = tomorrowChannel }, jsonOpts);
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/today_briefing_time"),     new { value = todayTime     }, jsonOpts);
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/today_briefing_channel"),  new { value = todayChannel  }, jsonOpts);
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/triple_cleaning_time"),    new { value = tripleTime    }, jsonOpts);
     await resHttp.PostAsJsonAsync(ResUrl("/admin/config/triple_cleaning_channel"), new { value = tripleChannel }, jsonOpts);
-    Audit(ctx.User.Identity?.Name ?? "?", "Settings saved", $"tomorrow={tomorrowTime}/{tomorrowChannel} today={todayTime}/{todayChannel} triple={tripleTime}/{tripleChannel}");
-    return Results.Content(DashboardPage(tomorrowTime, tomorrowChannel, todayTime, todayChannel, tripleTime, tripleChannel, T.Get(lang, "Saved."), isAdmin: true, lang: lang), "text/html");
+    await resHttp.PostAsJsonAsync(ResUrl("/admin/config/crib_alert_time"),         new { value = cribTime      }, jsonOpts);
+    await resHttp.PostAsJsonAsync(ResUrl("/admin/config/crib_alert_channel"),      new { value = cribChannel   }, jsonOpts);
+    Audit(ctx.User.Identity?.Name ?? "?", "Settings saved", $"tomorrow={tomorrowTime}/{tomorrowChannel} today={todayTime}/{todayChannel} triple={tripleTime}/{tripleChannel} crib={cribTime}/{cribChannel}");
+    return Results.Content(DashboardPage(tomorrowTime, tomorrowChannel, todayTime, todayChannel, tripleTime, tripleChannel, cribTime, cribChannel, T.Get(lang, "Saved."), isAdmin: true, lang: lang), "text/html");
 }).RequireAuthorization();
 
 // POST /dashboard/trigger/{type} – manually fire a briefing/alert via CR_Telegram
@@ -185,6 +193,7 @@ app.MapPost("/dashboard/trigger/{type}", async (string type, HttpContext ctx) =>
         "tomorrow" => "/briefing",
         "today"    => "/briefing/today",
         "triple"   => "/briefing/triple-cleaning",
+        "crib"     => "/briefing/crib-alert",
         _          => null
     };
     if (path == null) return Results.BadRequest("Unknown type.");
@@ -1768,7 +1777,7 @@ string LoginPage(string error = "", string lang = "en", bool showGoogle = false)
     </html>
     """;
 
-string DashboardPage(string tomorrowTime, string tomorrowChannel, string todayTime, string todayChannel, string tripleTime, string tripleChannel, string message = "", bool isAdmin = false, string lang = "en") => $$"""
+string DashboardPage(string tomorrowTime, string tomorrowChannel, string todayTime, string todayChannel, string tripleTime, string tripleChannel, string cribTime, string cribChannel, string message = "", bool isAdmin = false, string lang = "en") => $$"""
     <!DOCTYPE html>
     <html lang="{{lang}}">
     <head>
@@ -1842,6 +1851,26 @@ string DashboardPage(string tomorrowTime, string tomorrowChannel, string todayTi
             </div>
           </div>
           {{(isAdmin ? """<button type="button" class="btn btn-secondary" style="margin-top:.5rem;font-size:.82rem" onclick="triggerBriefing('triple',this)">▶ Send now</button>""" : "")}}
+        </div>
+        <div class="card" style="margin-top:1rem">
+          <p class="section-title">{{T.Get(lang, "Auto-Bot – Crib Alert")}}</p>
+          <div class="grid2" style="max-width:520px">
+            <div class="field">
+              <label for="crt">{{T.Get(lang, "Send time (Portugal time)")}}</label>
+              <input id="crt" type="time" name="crib_time" value="{{cribTime}}"/>
+            </div>
+            <div class="field">
+              <label for="crc">{{T.Get(lang, "Destination channel")}}</label>
+              <select id="crc" name="crib_channel">
+                {{Option("-5129864639", "Casa Rosa English",    cribChannel)}}
+                {{Option("-5186091931", "Casa Rosa Management", cribChannel)}}
+                {{Option("-5209557963", "Translator",           cribChannel)}}
+                {{Option("-5271439382", "Rapid Response",       cribChannel)}}
+              </select>
+              <div style="font-size:.78rem;color:#999;margin-top:.3rem">{{T.Get(lang, "Auto_Bot sends a crib alert when a crib is needed within the next 3 days.")}}</div>
+            </div>
+          </div>
+          {{(isAdmin ? """<button type="button" class="btn btn-secondary" style="margin-top:.5rem;font-size:.82rem" onclick="triggerBriefing('crib',this)">▶ Send now</button>""" : "")}}
         </div>
         {{(isAdmin ? $"""<button class="btn btn-primary" type="submit" style="margin-top:1rem">{T.Get(lang, "Save")}</button>""" : "")}}
         {{(string.IsNullOrEmpty(message) ? "" : $"<div class=\"ok-msg\" style=\"margin-top:.8rem\">&#10003; {message}</div>")}}

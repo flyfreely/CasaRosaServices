@@ -140,6 +140,8 @@ _ = Task.Run(async () =>
     await TelegramLog("scheduled", "Tomorrow Briefing", summary: $"Next: {NextFire(nowLog, tomorrowTimeLog):ddd d MMM 'at' HH:mm} Portugal");
     await TelegramLog("scheduled", "Today Briefing",    summary: $"Next: {NextFire(nowLog, todayTimeLog):ddd d MMM 'at' HH:mm} Portugal");
     await TelegramLog("scheduled", "Triple Cleaning Alert", summary: $"Next: {NextFire(nowLog, tripleTimeLog):ddd d MMM 'at' HH:mm} Portugal");
+    var cribTimeLog = await GetCribAlertTimeAsync();
+    await TelegramLog("scheduled", "Crib Alert", summary: $"Next: {NextFire(nowLog, cribTimeLog):ddd d MMM 'at' HH:mm} Portugal");
     while (true)
     {
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz);
@@ -213,6 +215,38 @@ _ = Task.Run(async () =>
             }
         }
         catch (Exception ex) { Console.WriteLine($"[Triple Cleaning Scheduler] {ex.Message}"); }
+    }
+});
+
+// ── Crib alert scheduler ──────────────────────────────────────────────────────
+_ = Task.Run(async () =>
+{
+    var portugalTz    = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
+    var lastCribFired = DateTime.MinValue;
+    while (true)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(1));
+        try
+        {
+            var now          = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz);
+            var cribTime     = await GetCribAlertTimeAsync();
+            var cribFireDt   = now.Date.Add(cribTime.ToTimeSpan());
+            if (now.Hour == cribTime.Hour && now.Minute == cribTime.Minute && lastCribFired < cribFireDt)
+            {
+                lastCribFired = cribFireDt;
+                try
+                {
+                    await SendCribAlertAsync();
+                    await TelegramLog("scheduled", "Crib Alert", summary: $"Next: {NextFire(now.AddMinutes(1), cribTime):ddd d MMM 'at' HH:mm} Portugal");
+                }
+                catch (Exception ex)
+                {
+                    await TelegramLog("error", "Crib Alert", summary: ex.Message, isError: true);
+                    throw;
+                }
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"[Crib Alert Scheduler] {ex.Message}"); }
     }
 });
 
@@ -558,6 +592,7 @@ async Task HandleHttpAsync(HttpListenerContext ctx)
         else if (path == "/briefing/today" && method == "POST") { await SendTodayBriefingAsync();    resp.StatusCode = 200; resp.Close(); return; }
         else if (path == "/notify/apartment-ready"   && method == "POST") { await HandleApartmentReadyAsync(ctx); return; }
         else if (path == "/briefing/triple-cleaning" && method == "POST") { await SendTripleCleaningAlertAsync(); resp.StatusCode = 200; resp.Close(); return; }
+        else if (path == "/briefing/crib-alert"      && method == "POST") { await SendCribAlertAsync();          resp.StatusCode = 200; resp.Close(); return; }
 
         resp.StatusCode = 404;
         resp.Close();
@@ -776,6 +811,79 @@ async Task<long> GetTripleCleaningChannelAsync()
     return CasaRosaManagementGroupId;
 }
 
+async Task<TimeOnly> GetCribAlertTimeAsync()
+{
+    try
+    {
+        var url  = $"{adminApiBaseUrl}/api/config/crib_alert_time?Token={adminApiToken}";
+        var resp = await httpClient.GetAsync(url);
+        if (resp.IsSuccessStatusCode)
+        {
+            var json  = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var value = json.GetProperty("value").GetString() ?? "08:00";
+            if (TimeOnly.TryParse(value, out var t)) return t;
+        }
+    }
+    catch { }
+    return new TimeOnly(8, 0);
+}
+
+async Task<long> GetCribAlertChannelAsync()
+{
+    try
+    {
+        var url  = $"{adminApiBaseUrl}/api/config/crib_alert_channel?Token={adminApiToken}";
+        var resp = await httpClient.GetAsync(url);
+        if (resp.IsSuccessStatusCode)
+        {
+            var json  = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var value = json.GetProperty("value").GetString() ?? "";
+            if (long.TryParse(value, out var id)) return id;
+        }
+    }
+    catch { }
+    return CasaRosaManagementGroupId;
+}
+
+async Task SendCribAlertAsync()
+{
+    var portugalTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
+    var today      = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, portugalTz));
+    var channel    = await GetCribAlertChannelAsync();
+
+    var cribEntries = new List<(DateOnly Date, int Apt, string? GuestName)>();
+    for (int i = 1; i <= 3; i++)
+    {
+        var day    = today.AddDays(i);
+        var dayStr = day.ToString("yyyy-MM-dd");
+        var url    = $"{reservationApiBaseUrl}/checkout?Token={reservationApiToken}&date={dayStr}";
+        var resp   = await httpClient.GetAsync(url);
+        if (!resp.IsSuccessStatusCode) continue;
+        var rows = await resp.Content.ReadFromJsonAsync<List<BriefingReservation>>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+        foreach (var r in rows.Where(r => r.Registration?.CribSetup == true))
+            cribEntries.Add((day, r.ApartmentNumber, r.ReservationName));
+    }
+
+    if (cribEntries.Count == 0)
+    {
+        Console.WriteLine("[Crib Alert] No crib needed in next 3 days.");
+        await TelegramLog("sent", "Crib Alert", ChannelName(channel), "No crib needed — alert skipped.");
+        return;
+    }
+
+    var lines = new List<string> { "👶 Кроватка нужна!" };
+    foreach (var (date, apt, name) in cribEntries)
+    {
+        var dateStr = date.ToString("d MMM", new System.Globalization.CultureInfo("ru-RU"));
+        lines.Add($"  🏠 Апт {apt} · {dateStr} — {name ?? "?"}");
+    }
+    var msg = string.Join("\n", lines);
+    await autoBot.SendMessage(channel, msg);
+    Console.WriteLine($"[Crib Alert] Sent to {channel}:\n{msg}");
+    await TelegramLog("sent", "Crib Alert", ChannelName(channel), msg.Length > 200 ? msg[..200] + "…" : msg);
+}
+
 async Task SendTripleCleaningAlertAsync()
 {
     var portugalTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Lisbon");
@@ -913,9 +1021,21 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
             var reqs = new List<string>();
             if (checkin.Registration != null)
             {
-                reqs.Add(checkin.Registration.EarlyCheckIn ? "⚡✅" : "⚡❌");
-                reqs.Add(checkin.Registration.CribSetup    ? "👶✅" : "👶❌");
-                reqs.Add(checkin.Registration.SofaSetup    ? "🛋️✅" : "🛋️❌");
+                var method = checkin.Registration.ArrivalMethod?.ToLower() ?? "";
+                var methodIcon = method switch {
+                    var s when s.Contains("airport") || s.Contains("flight")                    => "✈️",
+                    var s when s.Contains("car") || s.Contains("rental") || s.Contains("driv")
+                            || s.Contains("taxi")                                               => "🚗",
+                    var s when s.Contains("train")                                              => "🚂",
+                    var s when s.Contains("bus") || s.Contains("public")                       => "🚌",
+                    var s when s.Contains("ferry") || s.Contains("boat")                       => "⛴️",
+                    var s when s.Contains("self")                                               => "🔑",
+                    var s when s.Length > 0                                                     => "🚗",
+                    _                                                                           => "🚌❓"
+                };
+                reqs.Add(methodIcon);
+                reqs.Add(checkin.Registration.CribSetup  ? "👶✅" : "👶❌");
+                reqs.Add(checkin.Registration.SofaSetup  ? "🛋️✅" : "🛋️❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
             }
@@ -1513,6 +1633,7 @@ record ToolReservation(
     string?  Status);
 
 record BriefingRegistration(
+    string? ArrivalMethod,
     string? ArrivalTime,
     bool    EarlyCheckIn,
     bool    CribSetup,

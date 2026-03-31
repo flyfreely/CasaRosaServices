@@ -45,6 +45,9 @@ static class T
         ["Auto-Bot – Triple Cleaning Alert"] = "Auto-Bot – Тройная уборка",
         ["Auto_Bot sends a triple cleaning warning when 3 apartments need cleaning on the same day within the next 7 days."] =
             "Auto_Bot отправляет предупреждение о тройной уборке, когда в течение 7 дней в один день нужна уборка в 3 апартаментах.",
+        ["Auto-Bot – Crib Alert"] = "Auto-Bot – Кроватка",
+        ["Auto_Bot sends a crib alert when a crib is needed within the next 3 days."] =
+            "Auto_Bot отправляет оповещение, когда кроватка нужна в течение ближайших 3 дней.",
         ["Auto_Bot sends the tomorrow checkout / check-in summary to this channel."] =
             "Auto_Bot отправляет сводку о заездах и выездах на завтра в этот канал.",
         ["Auto_Bot sends the today checkout / check-in summary to this channel."] =
