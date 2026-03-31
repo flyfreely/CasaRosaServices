@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh root@penafiel.org \"cat /etc/nginx/sites-available/default | head -40\")",
+      "Bash(ssh root@penafiel.org \"cat /etc/nginx/sites-available/admin.penafiel.org\")"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "skipDangerousModePermissionPrompt": true
+}

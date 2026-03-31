@@ -28,9 +28,10 @@ static class ManageDb
         using var cmd = new SqlCommand("""
             SELECT Id, ApartmentNumber, ReservationName, ConfirmationCode,
                    CheckInDate, CheckOutDate, Nights, Adults, Children, Infants,
-                   Status, Enabled, Archived
+                   Status, Enabled, Archived, MessagesUrl
             FROM   Reservation
             WHERE  (@apt = 0 OR ApartmentNumber = @apt)
+              AND  Enabled = 1
               AND  (CheckInDate BETWEEN @from AND @to OR CheckOutDate BETWEEN @from AND @to)
               AND  (@status = 'all'
                     OR (@status = 'active'    AND Enabled=1 AND Archived=0
@@ -49,7 +50,7 @@ static class ManageDb
             rows.Add(new(I(rd,"Id"), I(rd,"ApartmentNumber"), S(rd,"ReservationName") ?? "",
                 S(rd,"ConfirmationCode"), D(rd,"CheckInDate"), D(rd,"CheckOutDate"),
                 I(rd,"Nights"), I(rd,"Adults"), I(rd,"Children"), I(rd,"Infants"),
-                S(rd,"Status"), B(rd,"Enabled"), B(rd,"Archived")));
+                S(rd,"Status"), B(rd,"Enabled"), B(rd,"Archived"), S(rd,"MessagesUrl")));
         return rows;
     }
 
@@ -133,6 +134,7 @@ static class ManageDb
                 Infants          = @infants,
                 PhoneNumber      = @phone,
                 LivesIn          = @livesIn,
+                Payout           = @payout,
                 NightlyRate      = @rate,
                 CleaningFee      = @cleaning,
                 Enabled          = @enabled,
@@ -153,6 +155,7 @@ static class ManageDb
         cmd.Parameters.AddWithValue("@infants",  req.Infants);
         cmd.Parameters.AddWithValue("@phone",    req.PhoneNumber ?? "");
         cmd.Parameters.AddWithValue("@livesIn",  req.LivesIn ?? "");
+        cmd.Parameters.AddWithValue("@payout",   req.Payout);
         cmd.Parameters.AddWithValue("@rate",     req.NightlyRate);
         cmd.Parameters.AddWithValue("@cleaning", req.CleaningFee);
         cmd.Parameters.AddWithValue("@enabled",  req.Enabled  ? 1 : 0);
@@ -292,5 +295,90 @@ static class ManageDb
         using var cmd = new SqlCommand("DELETE FROM Guest WHERE Id = @id", conn);
         cmd.Parameters.AddWithValue("@id", guestId);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    // ── Cal notes ─────────────────────────────────────────────────────────────
+    public static async Task EnsureAsync()
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        using var cmd = new SqlCommand("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ReservationCalNote')
+            CREATE TABLE ReservationCalNote (
+                ReservationId INT          NOT NULL PRIMARY KEY,
+                CheckInTime   NVARCHAR(50) NULL,
+                CheckOutTime  NVARCHAR(50) NULL,
+                Crib          BIT          NOT NULL DEFAULT 0,
+                EarlyCheckIn  BIT          NOT NULL DEFAULT 0,
+                SofaBed       BIT          NOT NULL DEFAULT 0,
+                LeavingBags   BIT          NOT NULL DEFAULT 0)
+            """, conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public static async Task<CalNote?> GetCalNoteAsync(int reservationId)
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        using var cmd = new SqlCommand("""
+            SELECT ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, LeavingBags
+            FROM ReservationCalNote WHERE ReservationId = @id
+            """, conn);
+        cmd.Parameters.AddWithValue("@id", reservationId);
+        using var rd = await cmd.ExecuteReaderAsync();
+        if (!await rd.ReadAsync()) return null;
+        return new(I(rd,"ReservationId"), S(rd,"CheckInTime"), S(rd,"CheckOutTime"),
+            B(rd,"Crib"), B(rd,"EarlyCheckIn"), B(rd,"SofaBed"), B(rd,"LeavingBags"));
+    }
+
+    public static async Task UpsertCalNoteAsync(int reservationId, CalNoteRequest req)
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        using var cmd = new SqlCommand("""
+            MERGE ReservationCalNote AS t
+            USING (SELECT @id AS ReservationId) AS s ON t.ReservationId = s.ReservationId
+            WHEN MATCHED THEN
+                UPDATE SET CheckInTime=@ci, CheckOutTime=@co, Crib=@crib,
+                           EarlyCheckIn=@earlyCI, SofaBed=@sofa, LeavingBags=@bags
+            WHEN NOT MATCHED THEN
+                INSERT (ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, LeavingBags)
+                VALUES (@id, @ci, @co, @crib, @earlyCI, @sofa, @bags);
+            """, conn);
+        cmd.Parameters.AddWithValue("@id",      reservationId);
+        cmd.Parameters.AddWithValue("@ci",      (object?)req.CheckInTime  ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@co",      (object?)req.CheckOutTime ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@crib",    req.Crib        ? 1 : 0);
+        cmd.Parameters.AddWithValue("@earlyCI", req.EarlyCheckIn? 1 : 0);
+        cmd.Parameters.AddWithValue("@sofa",    req.SofaBed     ? 1 : 0);
+        cmd.Parameters.AddWithValue("@bags",    req.LeavingBags ? 1 : 0);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    // ── Stats ─────────────────────────────────────────────────────────────────
+    public static async Task<List<MonthlyStatsRow>> GetStatsAsync(int year)
+    {
+        var rows = new List<MonthlyStatsRow>();
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        using var cmd = new SqlCommand("""
+            SELECT FORMAT(CheckInDate, 'yyyy-MM') AS Month,
+                   ApartmentNumber,
+                   SUM(Nights) AS Nights,
+                   SUM(Payout) AS Payout
+            FROM   Reservation
+            WHERE  YEAR(CheckInDate) = @year
+              AND  Enabled  = 1
+              AND  Archived = 0
+              AND  (Status IS NULL OR Status NOT LIKE '%ancel%')
+            GROUP  BY FORMAT(CheckInDate, 'yyyy-MM'), ApartmentNumber
+            ORDER  BY Month, ApartmentNumber
+            """, conn);
+        cmd.Parameters.AddWithValue("@year", year);
+        using var rd = await cmd.ExecuteReaderAsync();
+        while (await rd.ReadAsync())
+            rows.Add(new((string)rd["Month"], (int)rd["ApartmentNumber"],
+                Convert.ToInt32(rd["Nights"]), Convert.ToDecimal(rd["Payout"])));
+        return rows;
     }
 }

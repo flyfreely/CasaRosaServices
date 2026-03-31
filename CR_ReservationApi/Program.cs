@@ -1,13 +1,29 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
+using Serilog;
+using Serilog.Formatting.Compact;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Warning()
+    .Enrich.WithProperty("Source", "cr_reservationapi")
+    .WriteTo.Http(
+        requestUri:    "http://192.168.48.1:5100/api/logs",
+        queueLimitBytes: null,
+        textFormatter: new CompactJsonFormatter(),
+        httpClient:    new TelemetryHttpClient())
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 var app     = builder.Build();
 
 var connStr   = builder.Configuration["Database:ConnectionString"]!;
 var authToken = builder.Configuration["Http:AuthToken"]!;
 
 ManageDb.Init(connStr);
+AdminDb.Init(connStr);
+await AdminDb.EnsureAsync();
+await ManageDb.EnsureAsync();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 app.Use(async (ctx, next) =>
@@ -78,6 +94,39 @@ app.MapPost("/manage/reservations/{id:int}/registration", async (int id, Registr
     return Results.Ok();
 });
 
+app.MapGet("/manage/reservations/{id:int}/cal-note", async (int id) =>
+{
+    var note = await ManageDb.GetCalNoteAsync(id);
+    return note is null ? Results.NotFound() : Results.Ok(note);
+});
+
+app.MapPost("/manage/reservations/{id:int}/cal-note", async (int id, CalNoteRequest req) =>
+{
+    await ManageDb.UpsertCalNoteAsync(id, req);
+    return Results.Ok();
+});
+
+app.MapGet("/manage/cleaning", async (string from, string to) =>
+    Results.Ok(await AdminDb.ListCleaningAsync(DateOnly.Parse(from), DateOnly.Parse(to))));
+
+app.MapGet("/manage/cleaning/{date}/{apt:int}", async (string date, int apt) =>
+{
+    var d = DateOnly.Parse(date);
+    return Results.Ok(new { state = await AdminDb.GetCleaningStateAsync(d, apt) });
+});
+
+app.MapPost("/manage/cleaning/{date}/{apt:int}/toggle", async (string date, int apt) =>
+{
+    var d = DateOnly.Parse(date);
+    return Results.Ok(new { state = await AdminDb.ToggleCleaningAsync(d, apt) });
+});
+
+app.MapPost("/manage/cleaning/{date}/{apt:int}/set", async (string date, int apt, int state) =>
+{
+    var d = DateOnly.Parse(date);
+    return Results.Ok(new { state = await AdminDb.SetCleaningAsync(d, apt, state) });
+});
+
 app.MapGet("/manage/reservations/{id:int}/guests", async (int id) =>
 {
     var res = await ManageDb.GetAsync(id);
@@ -103,6 +152,146 @@ app.MapPost("/manage/reservations/{id:int}/guests/{guestId:int}/delete", async (
     return Results.Ok();
 });
 
+// ── Admin endpoints ───────────────────────────────────────────────────────────
+
+app.MapPost("/admin/login", async (AdminLoginRequest req) =>
+{
+    var login = await AdminDb.GetUserLoginAsync(req.Username);
+    if (login == null || !AdminDb.VerifyPassword(req.Password, login.Value.Hash)) return Results.Unauthorized();
+    return Results.Ok(new { id = login.Value.Id, role = login.Value.Role, lang = login.Value.Language });
+});
+
+app.MapGet("/admin/users", async () =>
+    Results.Ok(await AdminDb.ListUsersAsync()));
+
+app.MapGet("/admin/users/by-google-email", async (string email) =>
+{
+    var user = await AdminDb.GetUserByGoogleEmailAsync(email);
+    if (user is null) return Results.NotFound();
+    return Results.Ok(new { id = user.Value.Id, username = user.Value.Username,
+                            role = user.Value.Role, lang = user.Value.Language });
+});
+
+app.MapPost("/admin/users/{id:int}/google-email", async (int id, AdminSetGoogleEmailRequest req) =>
+{
+    await AdminDb.SetGoogleEmailAsync(id, string.IsNullOrWhiteSpace(req.Email) ? null : req.Email);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/users", async (AdminCreateUserRequest req) =>
+{
+    await AdminDb.CreateUserAsync(req.Username, req.Password);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/users/{id:int}/password", async (int id, AdminUpdatePasswordRequest req) =>
+{
+    await AdminDb.UpdatePasswordAsync(id, req.Password);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/users/{id:int}/delete", async (int id) =>
+{
+    if (await AdminDb.AdminCountAsync() <= 1)
+    {
+        var users = await AdminDb.ListUsersAsync();
+        if (users.FirstOrDefault(u => u.Id == id)?.Role == "Admin")
+            return Results.BadRequest(new { error = "Cannot delete the last admin user." });
+    }
+    await AdminDb.DeleteUserAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/users/{id:int}/language", async (int id, AdminSetLanguageRequest req) =>
+{
+    await AdminDb.UpdateUserLanguageAsync(id, req.Language == "ru" ? "ru" : "en");
+    return Results.Ok();
+});
+
+app.MapPost("/admin/users/{id:int}/set-role", async (int id, AdminSetRoleRequest req) =>
+{
+    if (req.Role != "Admin" && req.Role != "Viewer" && req.Role != "Helper")
+        return Results.BadRequest(new { error = "Invalid role." });
+    if (req.Role != "Admin" && await AdminDb.AdminCountAsync() <= 1)
+    {
+        var users = await AdminDb.ListUsersAsync();
+        if (users.FirstOrDefault(u => u.Id == id)?.Role == "Admin")
+            return Results.BadRequest(new { error = "At least one admin must remain." });
+    }
+    await AdminDb.SetRoleAsync(id, req.Role);
+    return Results.Ok();
+});
+
+app.MapGet("/manage/stats", async (int? year) =>
+    Results.Ok(await ManageDb.GetStatsAsync(year ?? DateTime.Today.Year)));
+
+app.MapGet("/admin/config/{key}", async (string key) =>
+{
+    var value = await AdminDb.GetConfigAsync(key);
+    return value is null ? Results.NotFound() : Results.Ok(new { key, value });
+});
+
+app.MapPost("/admin/config/{key}", async (string key, AdminConfigSetRequest req) =>
+{
+    await AdminDb.SetConfigAsync(key, req.Value);
+    return Results.Ok();
+});
+
+// ── Audit log endpoints ───────────────────────────────────────────────────────
+
+app.MapPost("/admin/audit", async (AuditLogRequest req) =>
+{
+    await AdminDb.LogAuditAsync(req.Actor, req.Action, req.Detail);
+    return Results.Ok();
+});
+
+app.MapGet("/admin/audit", async (int? limit) =>
+    Results.Ok(await AdminDb.GetAuditLogsAsync(limit ?? 200)));
+
+// ── Reminder endpoints ────────────────────────────────────────────────────────
+
+app.MapGet("/admin/reminders", async () =>
+    Results.Ok(await AdminDb.ListPendingRemindersAsync()));
+
+app.MapPost("/admin/reminders", async (ReminderCreateRequest req) =>
+{
+    var id = await AdminDb.CreateReminderAsync(req.Message, req.ScheduledAt, req.ChannelId, req.BotId, req.Language);
+    return Results.Ok(new { id });
+});
+
+app.MapPost("/admin/reminders/{id:int}/cancel", async (int id) =>
+{
+    await AdminDb.CancelReminderAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/reminders/{id:int}/update", async (int id, ReminderUpdateRequest req) =>
+{
+    await AdminDb.UpdateReminderAsync(id, req.Message, req.ScheduledAt);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/reminders/{id:int}/delete", async (int id) =>
+{
+    await AdminDb.DeleteReminderAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/reminders/{id:int}/sent", async (int id) =>
+{
+    await AdminDb.MarkReminderSentAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/telegram-log", async (TelegramLogRequest req) =>
+{
+    await AdminDb.AddTelegramLogAsync(req.EventType, req.MessageType, req.Channel, req.Summary, req.IsError);
+    return Results.Ok();
+});
+
+app.MapGet("/admin/telegram-log", async (int? limit) =>
+    Results.Ok(await AdminDb.GetTelegramLogAsync(limit ?? 200)));
+
 app.Run();
 
 // ── Request handler ───────────────────────────────────────────────────────────
@@ -120,6 +309,8 @@ static async Task<IResult> HandleAsync(string connStr, string? apartment, string
 static (DateOnly Start, DateOnly End) ParseRange(string? date)
 {
     var today = DateOnly.FromDateTime(DateTime.Today);
+    if (date is not null && DateOnly.TryParseExact(date, "yyyy-MM-dd", out var specific))
+        return (specific, specific);
     return date?.ToLowerInvariant() switch
     {
         "tomorrow" => (today.AddDays(1), today.AddDays(1)),
@@ -260,6 +451,14 @@ static async Task<List<ReservationResponse>> FetchAsync(string connStr, string? 
 
 // ── Response types ────────────────────────────────────────────────────────────
 record GuestResponse(string? Name, string? Nationality, int? Age);
+
+record AdminLoginRequest(string Username, string Password);
+record AdminCreateUserRequest(string Username, string Password);
+record AdminUpdatePasswordRequest(string Password);
+record AdminConfigSetRequest(string Value);
+record AdminSetRoleRequest(string Role);
+record AdminSetLanguageRequest(string Language);
+record ReminderCreateRequest(string Message, DateTime ScheduledAt, long ChannelId, string BotId, string Language);
 
 record RegistrationResponse(
     string? Email,

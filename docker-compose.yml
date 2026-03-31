@@ -63,15 +63,20 @@ services:
       - "8104:8104"
     environment:
       Http__AuthToken:              ${ADMIN_AUTH_TOKEN}
-      Database__ConnectionString:   ${CASAROSA_DB_CONNECTION_STRING}
       ReservationApi__BaseUrl:      http://cr_reservationapi:8103
       ReservationApi__Token:        ${RESERVATION_AUTH_TOKEN}
-    networks:
-      - default
-      - mssql_default
+      Google__ClientId:             ${GOOGLE_CLIENT_ID:-}
+      Google__ClientSecret:         ${GOOGLE_CLIENT_SECRET:-}
+      TelegramApi__BaseUrl:         http://cr_telegram:8102
+      TelegramApi__Token:           ${TELEGRAM_HTTP_AUTH_TOKEN}
+    volumes:
+      - cr_admin_keys:/app/keys
     depends_on:
       - cr_reservationapi
 
 networks:
   mssql_default:
     external: true
+
+volumes:
+  cr_admin_keys:
