@@ -1030,14 +1030,13 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
                     var s when s.Contains("bus") || s.Contains("public")                       => "🚌",
                     var s when s.Contains("ferry") || s.Contains("boat")                       => "⛴️",
                     var s when s.Contains("self")                                               => "🔑",
-                    var s when s.Length > 0                                                     => "🚗",
                     _                                                                           => "🚌❓"
                 };
-                reqs.Add(methodIcon);
                 reqs.Add(checkin.Registration.CribSetup  ? "👶✅" : "👶❌");
                 reqs.Add(checkin.Registration.SofaSetup  ? "🛋️✅" : "🛋️❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
+                reqs.Add(methodIcon);
             }
             if (reqs.Count > 0) lines.Add($"   {string.Join("  ", reqs)}");
         }
