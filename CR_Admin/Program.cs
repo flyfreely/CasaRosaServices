@@ -1450,14 +1450,14 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
                 var s when s.Contains("bus") || s.Contains("public")                       => "🚌",
                 var s when s.Contains("ferry") || s.Contains("boat")                       => "⛴️",
                 var s when s.Contains("self")                                               => "🔑",
-                _                                                                           => "🚗"
+                _                                                                           => "🚌❓"
             };
             sb.Append($"<span class='cal-tag'>{methodIcon} {System.Net.WebUtility.HtmlEncode(arrivalMethod)}</span>");
         }
         if (!string.IsNullOrWhiteSpace(arrTime)) sb.Append($"<span class='cal-tag'>⏰ {System.Net.WebUtility.HtmlEncode(arrTime)}</span>");
         if (!string.IsNullOrWhiteSpace(coTime))  sb.Append($"<span class='cal-tag'>🕐 {System.Net.WebUtility.HtmlEncode(coTime)}</span>");
         if (earlyCI) sb.Append($"<span class='cal-tag'>⚡ {T.Get(lang, "Early CI")}</span>");
-        if (crib)    sb.Append($"<span class='cal-tag'>🛏️ {T.Get(lang, "Crib")}</span>");
+        if (crib)    sb.Append($"<span class='cal-tag'>👶 {T.Get(lang, "Crib")}</span>");
         if (sofa)    sb.Append($"<span class='cal-tag'>🛋️ {T.Get(lang, "Sofa")}</span>");
         if (bags)    sb.Append($"<span class='cal-tag'>🧳 {T.Get(lang, "Bags")}</span>");
         return sb.Length > 0 ? $"<div class='cal-tags'>{sb}</div>" : "";

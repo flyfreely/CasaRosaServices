@@ -913,8 +913,8 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
             var reqs = new List<string>();
             if (checkin.Registration != null)
             {
-                reqs.Add(checkin.Registration.EarlyCheckIn ? "⏰✅" : "⏰❌");
-                reqs.Add(checkin.Registration.CribSetup    ? "🛏️✅" : "🛏️❌");
+                reqs.Add(checkin.Registration.EarlyCheckIn ? "⚡✅" : "⚡❌");
+                reqs.Add(checkin.Registration.CribSetup    ? "👶✅" : "👶❌");
                 reqs.Add(checkin.Registration.SofaSetup    ? "🛋️✅" : "🛋️❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
