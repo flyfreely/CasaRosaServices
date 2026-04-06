@@ -372,14 +372,14 @@ app.MapGet("/calendar", async (HttpContext ctx, string? date, string? month) =>
                  : stay != null             ? "occupied"
                  :                           "vacant";
 
-        string? arrT = null, arrMethod = null; bool earlyCI = false, crib = false, sofa = false; string? otherReq = null;
+        string? arrT = null, arrMethod = null; bool earlyCI = false, crib = false, sofa = false, ottoman = false; string? otherReq = null;
         if (ci != null)
         {
             var rr = await resHttp.GetAsync(ResUrl($"/manage/reservations/{ci.Id}/registration"));
             if (rr.IsSuccessStatusCode)
             {
                 var reg = await rr.Content.ReadFromJsonAsync<RegistrationDetail>(jsonOpts);
-                if (reg != null) { arrT = reg.ArrivalTime; earlyCI = reg.EarlyCheckIn; crib = reg.Crib; sofa = reg.Sofa; otherReq = reg.OtherRequests; arrMethod = reg.ArrivalMethod; }
+                if (reg != null) { arrT = reg.ArrivalTime; earlyCI = reg.EarlyCheckIn; crib = reg.Crib; sofa = reg.Sofa; ottoman = reg.Foldable; otherReq = reg.OtherRequests; arrMethod = reg.ArrivalMethod; }
             }
         }
         var primaryId = ci?.Id ?? stay?.Id;
@@ -401,7 +401,7 @@ app.MapGet("/calendar", async (HttpContext ctx, string? date, string? month) =>
             var cj = await cr.Content.ReadFromJsonAsync<JsonElement>(jsonOpts);
             cleaningState = cj.GetProperty("state").GetInt32();
         }
-        dayInfos.Add(new(a, stat, ci, co, stay, arrT, earlyCI, crib, sofa, otherReq, noteIn, noteOut, cleaningState, arrMethod));
+        dayInfos.Add(new(a, stat, ci, co, stay, arrT, earlyCI, crib, sofa, ottoman, otherReq, noteIn, noteOut, cleaningState, arrMethod));
     }
 
     // Calendar state per day for each apartment: 0=vacant 1=checkin 2=checkout 3=transition 4=occupied
@@ -444,6 +444,49 @@ app.MapGet("/calendar", async (HttpContext ctx, string? date, string? month) =>
         "text/html");
 }).RequireAuthorization();
 
+// GET /calendar/month-partial – AJAX calendar grid (no full page reload for month navigation)
+app.MapGet("/calendar/month-partial", async (HttpContext ctx, string? date, string? month) =>
+{
+    var today        = DateOnly.FromDateTime(DateTime.Today);
+    var sel          = DateOnly.TryParse(date, out var d) ? d : today;
+    var firstOfMonth = DateOnly.TryParse(month + "-01", out var m)
+        ? m : new DateOnly(sel.Year, sel.Month, 1);
+    var calStart = firstOfMonth.AddDays(-(((int)firstOfMonth.DayOfWeek + 6) % 7));
+    var calEnd   = calStart.AddDays(41);
+    var lang     = GetLang(ctx);
+
+    var allRes = await resHttp.GetFromJsonAsync<List<ReservationRow>>(
+        ResUrlQ("/manage/reservations", $"apt=0&from={calStart:yyyy-MM-dd}&to={calEnd:yyyy-MM-dd}&status=active"),
+        jsonOpts) ?? new();
+
+    var calData = new Dictionary<DateOnly, int[]>();
+    for (var day = calStart; day <= calEnd; day = day.AddDays(1))
+    {
+        var s = new int[3];
+        for (int i = 0; i < 3; i++)
+        {
+            int a = i + 1;
+            bool ci = allRes.Any(r => r.ApartmentNumber == a && r.CheckInDate  == day);
+            bool co = allRes.Any(r => r.ApartmentNumber == a && r.CheckOutDate == day);
+            bool md = allRes.Any(r => r.ApartmentNumber == a && r.CheckInDate  <  day && r.CheckOutDate > day);
+            s[i] = ci && co ? 3 : ci ? 1 : co ? 2 : md ? 4 : 0;
+        }
+        calData[day] = s;
+    }
+
+    var calCleaning = new Dictionary<(DateOnly, int), int>();
+    var clResp = await resHttp.GetAsync(ResUrlQ("/manage/cleaning", $"from={calStart:yyyy-MM-dd}&to={calEnd:yyyy-MM-dd}"));
+    if (clResp.IsSuccessStatusCode)
+    {
+        var clRows = await clResp.Content.ReadFromJsonAsync<List<CleaningRow>>(jsonOpts) ?? new();
+        foreach (var cl in clRows) calCleaning[(cl.Date, cl.ApartmentNumber)] = cl.State;
+    }
+
+    var html  = CalendarSectionInnerHtml(sel, firstOfMonth, calStart, today, lang, calData, calCleaning);
+    var newMonth = firstOfMonth.ToString("yyyy-MM");
+    return Results.Json(new { month = newMonth, html });
+}).RequireAuthorization();
+
 // GET /calendar/partial – AJAX day-view fragment (no full page reload for day navigation)
 app.MapGet("/calendar/partial", async (HttpContext ctx, string? date) =>
 {
@@ -468,14 +511,14 @@ app.MapGet("/calendar/partial", async (HttpContext ctx, string? date) =>
                  : stay != null             ? "occupied"
                  :                           "vacant";
 
-        string? arrT = null, arrMethod = null; bool earlyCI = false, crib = false, sofa = false; string? otherReq = null;
+        string? arrT = null, arrMethod = null; bool earlyCI = false, crib = false, sofa = false, ottoman = false; string? otherReq = null;
         if (ci != null)
         {
             var rr = await resHttp.GetAsync(ResUrl($"/manage/reservations/{ci.Id}/registration"));
             if (rr.IsSuccessStatusCode)
             {
                 var reg = await rr.Content.ReadFromJsonAsync<RegistrationDetail>(jsonOpts);
-                if (reg != null) { arrT = reg.ArrivalTime; earlyCI = reg.EarlyCheckIn; crib = reg.Crib; sofa = reg.Sofa; otherReq = reg.OtherRequests; arrMethod = reg.ArrivalMethod; }
+                if (reg != null) { arrT = reg.ArrivalTime; earlyCI = reg.EarlyCheckIn; crib = reg.Crib; sofa = reg.Sofa; ottoman = reg.Foldable; otherReq = reg.OtherRequests; arrMethod = reg.ArrivalMethod; }
             }
         }
         var primaryId = ci?.Id ?? stay?.Id;
@@ -497,7 +540,7 @@ app.MapGet("/calendar/partial", async (HttpContext ctx, string? date) =>
             var cj = await cr.Content.ReadFromJsonAsync<JsonElement>(jsonOpts);
             cleaningState = cj.GetProperty("state").GetInt32();
         }
-        dayInfos.Add(new(a, stat, ci, co, stay, arrT, earlyCI, crib, sofa, otherReq, noteIn, noteOut, cleaningState, arrMethod));
+        dayInfos.Add(new(a, stat, ci, co, stay, arrT, earlyCI, crib, sofa, ottoman, otherReq, noteIn, noteOut, cleaningState, arrMethod));
     }
 
     return Results.Content(CalendarDayHtml(sel, today, dayInfos, IsAdmin(ctx), GetLang(ctx), CanToggleCleaning(ctx)), "text/html");
@@ -590,6 +633,12 @@ app.MapPost("/reservations/new", async (HttpContext ctx) =>
         Infants          = int.TryParse(f["infants"],  out var i) ? i : 0,
     };
     var resp = await resHttp.PostAsJsonAsync(ResUrl("/manage/reservations"), req, jsonOpts);
+    if (resp.StatusCode == System.Net.HttpStatusCode.Conflict)
+    {
+        var lang = GetLang(ctx);
+        var overlapMsg = T.Get(lang, "A reservation for this apartment already exists for the selected dates.");
+        return Results.Content(ReservationPages.NewForm(lang, IsAdmin(ctx), overlapMsg), "text/html");
+    }
     var body = await resp.Content.ReadFromJsonAsync<JsonElement>(jsonOpts);
     var id   = body.GetProperty("id").GetInt32();
     Audit(ctx.User.Identity?.Name ?? "?", "Reservation created", $"Apt {req.ApartmentNumber}, {req.ReservationName}");
@@ -672,6 +721,7 @@ app.MapPost("/reservations/{id:int}/registration", async (int id, HttpContext ct
         InvoiceName   = f["invoiceName"].ToString(),
         InvoiceAddr   = f["invoiceAddr"].ToString(),
         InvoiceEmail  = f["invoiceEmail"].ToString(),
+        Sef           = f["sef"].ToString(),
     };
     await resHttp.PostAsJsonAsync(ResUrl($"/manage/reservations/{id}/registration"), req, jsonOpts);
     return Results.Redirect($"/reservations/{id}");
@@ -684,9 +734,13 @@ app.MapPost("/reservations/{id:int}/guests", async (int id, HttpContext ctx) =>
     var f   = await ctx.Request.ReadFormAsync();
     var req = new
     {
-        Name        = f["guestName"].ToString(),
-        Nationality = f["guestNat"].ToString(),
-        BirthDate   = f["guestDob"].ToString(),
+        Name           = f["guestName"].ToString(),
+        Nationality    = f["guestNat"].ToString(),
+        BirthDate      = f["guestDob"].ToString(),
+        Residency      = f["guestResidency"].ToString(),
+        CountryOfBirth = f["guestCob"].ToString(),
+        TypeOfId       = f["guestTypeOfId"].ToString(),
+        IdNumber       = f["guestIdNumber"].ToString(),
     };
     await resHttp.PostAsJsonAsync(ResUrl($"/manage/reservations/{id}/guests"), req, jsonOpts);
     return Results.Redirect($"/reservations/{id}");
@@ -1008,82 +1062,10 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
         "checkin" => T.Get(lang, "Check-in ↓"), "checkout" => T.Get(lang, "Check-out ↑"),
         "occupied" => T.Get(lang, "Occupied"), "transition" => T.Get(lang, "Transition Day"), _ => T.Get(lang, "Vacant")
     };
-    // Per-half colors: (leftColor, rightColor)
-    (string L, string R) BarHalves(int state, int idx) => state switch
-    {
-        1 => ("#ddd",         aptColor[idx]),   // checkin
-        2 => (aptDark[idx],   "#ddd"),           // checkout
-        3 => (aptDark[idx],   aptColor[idx]),    // transition
-        4 => (aptColor[idx],  aptColor[idx]),    // occupied
-        _ => ("#ddd",         "#ddd")            // vacant
-    };
-    string BarStyle(int state, int idx) => state switch
-    {
-        1 => $"background:linear-gradient(to right,#ddd 50%,{aptColor[idx]} 50%)",         // checkin: right half colored
-        2 => $"background:linear-gradient(to right,{aptDark[idx]} 50%,#ddd 50%)",          // checkout: left half dark
-        3 => $"background:linear-gradient(to right,{aptDark[idx]} 50%,{aptColor[idx]} 50%)", // transition
-        4 => $"background:{aptFade[idx]}",                                                  // occupied: faded color
-        _ => "background:#e8e8e8"                                                           // vacant
-    };
-
     var dayCardHtml = CalendarDayHtml(sel, today, apts, isAdmin, lang, canToggleCleaning);
 
-    // Calendar grid
-    var calHtml = new System.Text.StringBuilder();
-    foreach (var dn in dayNames)
-        calHtml.Append($"<div class='cal-head'>{dn}</div>");
-
-    var prevMonth = firstOfMonth.AddMonths(-1).ToString("yyyy-MM");
-    var nextMonth = firstOfMonth.AddMonths(1).ToString("yyyy-MM");
-    var monthStr  = firstOfMonth.ToString("yyyy-MM");
-
-    for (var day = calStart; day <= calStart.AddDays(41); day = day.AddDays(1))
-    {
-        var states   = calData.TryGetValue(day, out var s) ? s : new int[3];
-        var isToday  = day == today;
-        var isSel    = day == sel;
-        var isOther  = day.Month != firstOfMonth.Month;
-        var cls      = (isSel ? "selected " : "") + (isToday ? "is-today " : "") + (isOther ? "other-month" : "");
-        var barHtml = string.Join("", states.Select((st, i) =>
-        {
-            var (lc, rc) = BarHalves(st, i);
-            var apt      = i + 1;
-            var cs       = calCleaning != null && calCleaning.TryGetValue((day, apt), out var csv) ? csv : 0;
-            var broom    = cs > 0 ? $"<span class='cbar-broom cbar-broom-{cs}'></span>" : "";
-            var title    = $"{T.Get(lang, "Apt")} {apt}: {StatusLabel(st == 0 ? "vacant" : st == 1 ? "checkin" : st == 2 ? "checkout" : st == 3 ? "transition" : "occupied")}";
-            return $"<div class='cbar-row' title='{title}'><div class='cbar-half' style='background:{lc}'></div>{broom}<div class='cbar-half' style='background:{rc}'></div></div>";
-        }));
-        calHtml.Append($"""
-            <a href="/calendar?date={day:yyyy-MM-dd}&month={monthStr}" class="cal-day {cls}">
-              <span class="cal-num">{day.Day}</span>
-              <div class="cbars">{barHtml}</div>
-            </a>
-            """);
-    }
-
-    // Monthly occupancy stats
-    var daysInMonth = DateTime.DaysInMonth(firstOfMonth.Year, firstOfMonth.Month);
-    var occNights = new int[3];
-    for (var day = firstOfMonth; day < firstOfMonth.AddMonths(1); day = day.AddDays(1))
-    {
-        if (!calData.TryGetValue(day, out var s)) continue;
-        for (int i = 0; i < 3; i++)
-            if (s[i] == 1 || s[i] == 3 || s[i] == 4) // checkin, transition, occupied
-                occNights[i]++;
-    }
-    var occBars = string.Join("", Enumerable.Range(0, 3).Select(i =>
-    {
-        var pct = daysInMonth > 0 ? occNights[i] * 100 / daysInMonth : 0;
-        return $"""
-            <div class="occ-row">
-              <span class="occ-label"><span class="apt-badge" style="background:{aptColor[i]};color:#fff;width:20px;height:20px;font-size:.75rem">{i+1}</span> {aptFloor[i]}</span>
-              <div class="occ-bar-track">
-                <div class="occ-bar-fill" style="width:{pct}%;background:{aptColor[i]}"></div>
-              </div>
-              <span class="occ-pct">{occNights[i]}d · {pct}%</span>
-            </div>
-            """;
-    }));
+    var monthStr      = firstOfMonth.ToString("yyyy-MM");
+    var calSectionHtml = CalendarSectionInnerHtml(sel, firstOfMonth, calStart, today, lang, calData, calCleaning);
 
     return $$"""
         <!DOCTYPE html>
@@ -1151,9 +1133,31 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
             .cal-legend { display:flex; gap:.8rem; font-size:.75rem; margin-bottom:.7rem; color:#666; flex-wrap:wrap; align-items:center; }
             .cal-legend span { display:flex; align-items:center; gap:.35rem; }
             .cleg { width:28px; height:6px; border-radius:3px; flex-shrink:0; }
-            .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+            .cal-grid { display:grid; grid-template-columns:repeat(7,1fr) 28px; gap:2px; }
             .cal-head { text-align:center; font-size:.75rem; font-weight:600; color:#999;
                         padding:.4rem 0; text-transform:uppercase; letter-spacing:.05em; }
+            .wc-head { color:#bbb; }
+            .week-count { display:flex; align-items:center; justify-content:center; font-size:.7rem;
+                          font-weight:700; color:#999; background:#f7f7f7; border-radius:5px; text-align:center; line-height:1.3; }
+            .week-count span { display:none; }
+            .week-count span[data-wc='full'] { display:inline; }
+            .week-count b { display:block; font-size:.72rem; color:#777; }
+            .week-count small { display:block; font-size:.65rem; color:#bbb; font-weight:400; }
+            .stats-summary { display:flex; gap:1.5rem; margin-top:.6rem; padding-top:.5rem;
+                             border-top:1px solid #f0f0f0; font-size:.85rem; color:#555; }
+            .stats-summary span strong { font-size:1.1rem; color:#333; margin-right:.2rem; }
+            /* Mode filter */
+            .mode-select { font-size:.82rem; padding:.3rem .6rem; border:1px solid #ddd; border-radius:6px;
+                           background:#fff; cursor:pointer; }
+            .cal-section.mode-ci .cbar-row[data-state="0"],
+            .cal-section.mode-ci .cbar-row[data-state="2"],
+            .cal-section.mode-ci .cbar-row[data-state="4"] { opacity:.12; }
+            .cal-section.mode-co .cbar-row[data-state="0"],
+            .cal-section.mode-co .cbar-row[data-state="1"],
+            .cal-section.mode-co .cbar-row[data-state="4"] { opacity:.12; }
+            .cal-section.mode-cl .cbar-row[data-clean="0"] { opacity:.12; }
+            .occ-section > div[data-stats] { display:none; }
+            .occ-section > div[data-stats='full'] { display:block; }
             .cal-day { display:flex; flex-direction:column; align-items:center; padding:.4rem .2rem .3rem;
                        border-radius:7px; text-decoration:none; color:inherit; cursor:pointer;
                        border:2px solid transparent; transition:background .1s; min-height:58px; gap:.2rem; }
@@ -1162,6 +1166,10 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
             .cal-day.is-today .cal-num { background:rgb(33,37,41); color:#fff; border-radius:50%;
                                           width:24px; height:24px; display:flex; align-items:center;
                                           justify-content:center; font-size:.82rem; }
+            .cal-day.triple-co .cal-num { background:#ef4444; color:#fff; border-radius:50%;
+                                          width:24px; height:24px; display:flex; align-items:center;
+                                          justify-content:center; font-size:.82rem; }
+            .cal-day.is-today.triple-co .cal-num { background:#b91c1c; }
             .cal-day.selected { border-color:rgb(33,37,41); background:#f5f5f5; }
             .cal-num { font-size:.85rem; font-weight:500; line-height:1.4; }
             .cbars { display:flex; flex-direction:column; gap:2px; width:100%; margin-top:auto; padding:0 1px; }
@@ -1209,25 +1217,7 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
 
               <!-- Calendar navigator -->
               <div class="card cal-section" data-cal-month="{{monthStr}}">
-                <div class="cal-month-nav">
-                  <a href="/calendar?date={{sel:yyyy-MM-dd}}&month={{prevMonth}}">‹</a>
-                  <strong>{{firstOfMonth.ToString("MMMM yyyy", T.Culture(lang))}}</strong>
-                  <a href="/calendar?date={{sel:yyyy-MM-dd}}&month={{nextMonth}}">›</a>
-                </div>
-                <div class="cal-legend">
-                  <span><span class="cleg" style="background:linear-gradient(to right,#ddd 50%,#4a90d9 50%)"></span> {{T.Get(lang, "Check-in")}}</span>
-                  <span><span class="cleg" style="background:linear-gradient(to right,#1a5276 50%,#ddd 50%)"></span> {{T.Get(lang, "Check-out")}}</span>
-                  <span><span class="cleg" style="background:#d0e8f8"></span> {{T.Get(lang, "Occupied")}}</span>
-                  <span><span class="cleg" style="background:linear-gradient(to right,#1a5276 50%,#4a90d9 50%)"></span> {{T.Get(lang, "Transition")}}</span>
-                </div>
-                <div class="cal-grid">
-                  {{calHtml}}
-                </div>
-                <!-- Monthly occupancy -->
-                <div class="occ-section">
-                  <p class="occ-title">{{T.Get(lang, "Monthly Occupancy")}} – {{firstOfMonth.ToString("MMMM", T.Culture(lang))}}</p>
-                  {{occBars}}
-                </div>
+                {{calSectionHtml}}
               </div>
 
             </div>
@@ -1257,6 +1247,7 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
               <label><input type="checkbox" id="cnd-earlyci"/> {{T.Get(lang, "Early check-in")}}</label>
               <label><input type="checkbox" id="cnd-crib"/> {{T.Get(lang, "Crib")}}</label>
               <label><input type="checkbox" id="cnd-sofa"/> {{T.Get(lang, "Sofa bed")}}</label>
+              <label><input type="checkbox" id="cnd-ottoman"/> {{T.Get(lang, "Ottoman bed")}}</label>
               <label><input type="checkbox" id="cnd-bags"/> {{T.Get(lang, "Leaving bags")}}</label>
             </div>
             <div style="display:flex;gap:.5rem;margin-top:1.2rem">
@@ -1268,9 +1259,33 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
           (function(){
             var calSection = document.querySelector('.cal-section');
             var curMonth = calSection ? calSection.dataset.calMonth : '';
+            async function loadMonth(url) {
+              try {
+                var p = new URL(url, location.origin).searchParams;
+                var apiUrl = '/calendar/month-partial?date=' + encodeURIComponent(p.get('date') || '') + '&month=' + encodeURIComponent(p.get('month') || '');
+                var resp = await fetch(apiUrl);
+                if (!resp.ok) throw 0;
+                var data = await resp.json();
+                calSection = document.querySelector('.cal-section');
+                calSection.dataset.calMonth = data.month;
+                calSection.innerHTML = data.html;
+                curMonth = data.month;
+                // restore mode dropdown
+                var sel = calSection.querySelector('.mode-select');
+                if (sel) { sel.value = window._calMode || 'full'; }
+                calMode(window._calMode || 'full');
+                history.pushState(null, '', url);
+              } catch(e) { location.href = url; }
+            }
             async function loadDay(date) {
               var newMonth = date.substring(0, 7);
-              if (newMonth !== curMonth) { location.href = '/calendar?date=' + date; return; }
+              if (newMonth !== curMonth) {
+                await loadMonth('/calendar?date=' + date + '&month=' + newMonth);
+                document.querySelectorAll('.cal-day').forEach(function(a) {
+                  var u = new URL(a.href, location.origin);
+                  a.classList.toggle('selected', u.searchParams.get('date') === date);
+                });
+              }
               try {
                 var resp = await fetch('/calendar/partial?date=' + encodeURIComponent(date));
                 if (!resp.ok) throw 0;
@@ -1279,7 +1294,7 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
                   var u = new URL(a.href, location.origin);
                   a.classList.toggle('selected', u.searchParams.get('date') === date);
                 });
-                history.pushState(null, '', '/calendar?date=' + date);
+                history.pushState(null, '', '/calendar?date=' + date + '&month=' + curMonth);
               } catch(e) { location.href = '/calendar?date=' + date; }
             }
             function curDate() {
@@ -1298,11 +1313,18 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
                 document.getElementById('cnd-earlyci').checked   = d.earlyci  === 'true';
                 document.getElementById('cnd-crib').checked      = d.crib     === 'true';
                 document.getElementById('cnd-sofa').checked      = d.sofabed  === 'true';
+                document.getElementById('cnd-ottoman').checked   = d.ottoman  === 'true';
                 document.getElementById('cnd-bags').checked      = d.leavingbags === 'true';
                 var mode = d.mode || 'checkin';
                 document.getElementById('cnd-ci-row').style.display = mode === 'checkout' ? 'none' : '';
                 document.getElementById('cnd-co-row').style.display = mode === 'checkin'  ? 'none' : '';
                 document.getElementById('cal-note-dialog').showModal();
+                return;
+              }
+              var monthArrow = e.target.closest('.cal-month-arrow');
+              if (monthArrow && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                await loadMonth(monthArrow.href);
                 return;
               }
               var dayLink = e.target.closest('.cal-day');
@@ -1330,6 +1352,7 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
                 crib:         document.getElementById('cnd-crib').checked,
                 earlyCheckIn: document.getElementById('cnd-earlyci').checked,
                 sofaBed:      document.getElementById('cnd-sofa').checked,
+                ottomanBed:   document.getElementById('cnd-ottoman').checked,
                 leavingBags:  document.getElementById('cnd-bags').checked
               });
               var r = await fetch('/calendar/cal-note/' + resId, {
@@ -1375,6 +1398,20 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
               }
             }
           }
+          window.calMode = function(m) {
+            window._calMode = m;
+            var sec = document.querySelector('.cal-section');
+            sec.className = sec.className.replace(/\bmode-\w+/g, '').trim();
+            if (m !== 'full') sec.classList.add('mode-' + m);
+            // Week counts
+            document.querySelectorAll('.week-count span').forEach(function(s) {
+              s.style.display = s.dataset.wc === m ? 'inline' : 'none';
+            });
+            // Stats
+            document.querySelectorAll('.occ-section [data-stats]').forEach(function(d) {
+              d.style.display = d.dataset.stats === m ? 'block' : 'none';
+            });
+          };
           window.toggleCleaning = async function(apt) {
             var date = new URLSearchParams(location.search).get('date')
                     || new Date().toISOString().split('T')[0];
@@ -1401,6 +1438,143 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
           {{ReservationPages.Footer()}}
         </body>
         </html>
+        """;
+}
+
+// ── Calendar section inner HTML (grid + stats, shared by full page + month partial) ───
+string CalendarSectionInnerHtml(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, DateOnly today,
+    string lang, Dictionary<DateOnly, int[]> calData, Dictionary<(DateOnly, int), int>? calCleaning)
+{
+    string[] aptColor = { "#4a90d9", "#2ecc71", "#e67e22" };
+    string[] aptDark  = { "#1a5276", "#1a7a43", "#a04000" };
+    string[] aptFloor = { T.Get(lang, "1st Floor"), T.Get(lang, "2nd Floor"), T.Get(lang, "3rd Floor") };
+    string[] dayNames = lang == "ru"
+        ? new[] { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" }
+        : new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+
+    string StatusLabel(string s) => s switch
+    {
+        "checkin" => T.Get(lang, "Check-in ↓"), "checkout" => T.Get(lang, "Check-out ↑"),
+        "occupied" => T.Get(lang, "Occupied"), "transition" => T.Get(lang, "Transition Day"), _ => T.Get(lang, "Vacant")
+    };
+    (string L, string R) BarHalves(int state, int idx) => state switch
+    {
+        1 => ("#ddd",       aptColor[idx]),
+        2 => (aptDark[idx], "#ddd"),
+        3 => (aptDark[idx], aptColor[idx]),
+        4 => (aptColor[idx], aptColor[idx]),
+        _ => ("#ddd", "#ddd")
+    };
+
+    var prevMonth = firstOfMonth.AddMonths(-1).ToString("yyyy-MM");
+    var nextMonth = firstOfMonth.AddMonths(1).ToString("yyyy-MM");
+    var monthStr  = firstOfMonth.ToString("yyyy-MM");
+
+    var calHtml = new System.Text.StringBuilder();
+    foreach (var dn in dayNames) calHtml.Append($"<div class='cal-head'>{dn}</div>");
+    calHtml.Append($"<div class='cal-head wc-head' title='{T.Get(lang, "Weekly totals: occupied apartments (Full), check-in days & events, check-out days & events, or cleaning days & events — depending on the selected mode")}'>#</div>");
+
+    for (int w = 0; w < 6; w++)
+    {
+        int wkFull = 0, wkCi = 0, wkCo = 0, wkCl = 0, wkCiDays = 0, wkCoDays = 0, wkClDays = 0;
+        for (int d = 0; d < 7; d++)
+        {
+            var day    = calStart.AddDays(w * 7 + d);
+            var states = calData.TryGetValue(day, out var s) ? s : new int[3];
+            var isToday = day == today; var isSel = day == sel;
+            var isOther = day.Month != firstOfMonth.Month;
+            var tripleOut = states.Count(st => st == 2 || st == 3) == 3;
+            var cls = (isSel ? "selected " : "") + (isToday ? "is-today " : "") + (isOther ? "other-month " : "") + (tripleOut ? "triple-co" : "");
+            var barHtml = string.Join("", states.Select((st, i) =>
+            {
+                var apt = i + 1;
+                var cs  = calCleaning != null && calCleaning.TryGetValue((day, apt), out var csv) ? csv : 0;
+                var broom = cs > 0 ? $"<span class='cbar-broom cbar-broom-{cs}'></span>" : "";
+                var title = $"{T.Get(lang, "Apt")} {apt}: {StatusLabel(st == 0 ? "vacant" : st == 1 ? "checkin" : st == 2 ? "checkout" : st == 3 ? "transition" : "occupied")}";
+                var (lc, rc) = BarHalves(st, i);
+                return $"<div class='cbar-row' data-state='{st}' data-clean='{(cs>0?1:0)}' title='{title}'><div class='cbar-half' style='background:{lc}'></div>{broom}<div class='cbar-half' style='background:{rc}'></div></div>";
+            }));
+            var ciCount = states.Count(st => st == 1 || st == 3);
+            var coCount = states.Count(st => st == 2 || st == 3);
+            var occCount = states.Count(st => st == 1 || st == 3 || st == 4);
+            var dayTip = new System.Text.StringBuilder();
+            dayTip.Append($"{day:ddd, MMM d}");
+            if (tripleOut) dayTip.Append($" — ⚠ {T.Get(lang, "All 3 apartments checking out! Heavy cleaning day.")}");
+            if (ciCount > 0) dayTip.Append($" · {ciCount} {T.Get(lang, "check-ins")}");
+            if (coCount > 0) dayTip.Append($" · {coCount} {T.Get(lang, "check-outs")}");
+            dayTip.Append($" · {occCount}/3 {T.Get(lang, "occupied")}");
+            for (int i = 0; i < 3; i++) { var st = states[i]; dayTip.Append($"\n{T.Get(lang, "Apt")} {i+1}: {StatusLabel(st == 0 ? "vacant" : st == 1 ? "checkin" : st == 2 ? "checkout" : st == 3 ? "transition" : "occupied")}"); }
+            calHtml.Append($"<a href='/calendar?date={day:yyyy-MM-dd}&month={monthStr}' class='cal-day {cls}' title='{System.Net.WebUtility.HtmlEncode(dayTip.ToString())}'><span class='cal-num'>{day.Day}</span><div class='cbars'>{barHtml}</div></a>");
+            bool dayCi = false, dayCo = false, dayCl = false;
+            for (int i = 0; i < 3; i++) { int st = states[i];
+                if (st==1||st==3||st==4) wkFull++; if (st==1||st==3){wkCi++;dayCi=true;} if (st==2||st==3){wkCo++;dayCo=true;} }
+            for (int a = 1; a <= 3; a++)
+                if (calCleaning!=null && calCleaning.TryGetValue((day,a),out var cs2) && cs2>0){wkCl++;dayCl=true;}
+            if (dayCi) wkCiDays++; if (dayCo) wkCoDays++; if (dayCl) wkClDays++;
+        }
+        var wcFullTip = T.Get(lang, "Total occupied apartment-days this week");
+        var wcCiTip = $"{wkCiDays} {T.Get(lang, "days with check-ins")}, {wkCi} {T.Get(lang, "check-in events")} {T.Get(lang, "this week")}";
+        var wcCoTip = $"{wkCoDays} {T.Get(lang, "days with check-outs")}, {wkCo} {T.Get(lang, "check-out events")} {T.Get(lang, "this week")}";
+        var wcClTip = $"{wkClDays} {T.Get(lang, "days with cleanings")}, {wkCl} {T.Get(lang, "cleaning events")} {T.Get(lang, "this week")}";
+        calHtml.Append($"<div class='week-count'><span data-wc='full' title='{System.Net.WebUtility.HtmlEncode(wcFullTip)}'>{wkFull}</span><span data-wc='ci' style='display:none' title='{System.Net.WebUtility.HtmlEncode(wcCiTip)}'><b>{wkCiDays}</b><br/><small>{wkCi}</small></span><span data-wc='co' style='display:none' title='{System.Net.WebUtility.HtmlEncode(wcCoTip)}'><b>{wkCoDays}</b><br/><small>{wkCo}</small></span><span data-wc='cl' style='display:none' title='{System.Net.WebUtility.HtmlEncode(wcClTip)}'><b>{wkClDays}</b><br/><small>{wkCl}</small></span></div>");
+    }
+
+    var daysInMonth = DateTime.DaysInMonth(firstOfMonth.Year, firstOfMonth.Month);
+    var occNights = new int[3]; var monthCi = new int[3]; var monthCo = new int[3]; var monthCl = new int[3];
+    int totalCiDays = 0, totalCoDays = 0, totalClDays = 0;
+    for (var day = firstOfMonth; day < firstOfMonth.AddMonths(1); day = day.AddDays(1))
+    {
+        bool dayCi = false, dayCo = false, dayCl = false;
+        if (calData.TryGetValue(day, out var s2))
+            for (int i = 0; i < 3; i++) {
+                if (s2[i]==1||s2[i]==3||s2[i]==4) occNights[i]++;
+                if (s2[i]==1||s2[i]==3){monthCi[i]++;dayCi=true;} if (s2[i]==2||s2[i]==3){monthCo[i]++;dayCo=true;}
+            }
+        for (int a = 1; a <= 3; a++)
+            if (calCleaning!=null && calCleaning.TryGetValue((day,a),out var cs3) && cs3>0){monthCl[a-1]++;dayCl=true;}
+        if (dayCi) totalCiDays++; if (dayCo) totalCoDays++; if (dayCl) totalClDays++;
+    }
+    string SR(int[] counts, string unit, int denom) => string.Join("", Enumerable.Range(0,3).Select(i=>{
+        var pct = denom>0?Math.Min(counts[i]*100/denom,100):0;
+        return $"<div class='occ-row'><span class='occ-label'><span class='apt-badge' style='background:{aptColor[i]};color:#fff;width:20px;height:20px;font-size:.75rem'>{i+1}</span> {aptFloor[i]}</span><div class='occ-bar-track'><div class='occ-bar-fill' style='width:{pct}%;background:{aptColor[i]}'></div></div><span class='occ-pct'>{counts[i]} {unit}</span></div>";
+    }));
+    string SS(int days, int events, string dl, string el) =>
+        $"<div class='stats-summary'><span><strong>{days}</strong> {dl}</span><span><strong>{events}</strong> {el}</span></div>";
+    var occBars = string.Join("", Enumerable.Range(0,3).Select(i=>{var pct=daysInMonth>0?occNights[i]*100/daysInMonth:0;
+        return $"<div class='occ-row'><span class='occ-label'><span class='apt-badge' style='background:{aptColor[i]};color:#fff;width:20px;height:20px;font-size:.75rem'>{i+1}</span> {aptFloor[i]}</span><div class='occ-bar-track'><div class='occ-bar-fill' style='width:{pct}%;background:{aptColor[i]}'></div></div><span class='occ-pct'>{occNights[i]}d · {pct}%</span></div>";}));
+    var maxCi=Math.Max(monthCi.Max(),1); var maxCo=Math.Max(monthCo.Max(),1); var maxCl=Math.Max(monthCl.Max(),1);
+    var ciBars = SR(monthCi,T.Get(lang,"check-ins"),maxCi)+SS(totalCiDays,monthCi.Sum(),T.Get(lang,"check-in days"),T.Get(lang,"check-in events"));
+    var coBars = SR(monthCo,T.Get(lang,"check-outs"),maxCo)+SS(totalCoDays,monthCo.Sum(),T.Get(lang,"check-out days"),T.Get(lang,"check-out events"));
+    var clBars = SR(monthCl,T.Get(lang,"cleanings"),maxCl)+SS(totalClDays,monthCl.Sum(),T.Get(lang,"cleaning days"),T.Get(lang,"cleaning events"));
+    var monthName = firstOfMonth.ToString("MMMM", T.Culture(lang));
+
+    return $$"""
+        <div class="cal-month-nav">
+          <a class="cal-month-arrow" href="/calendar?date={{sel:yyyy-MM-dd}}&month={{prevMonth}}">‹</a>
+          <strong>{{firstOfMonth.ToString("MMMM yyyy", T.Culture(lang))}}</strong>
+          <a class="cal-month-arrow" href="/calendar?date={{sel:yyyy-MM-dd}}&month={{nextMonth}}">›</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.6rem;flex-wrap:wrap">
+          <select class="mode-select" onchange="calMode(this.value)">
+            <option value="full">{{T.Get(lang, "Full")}}</option>
+            <option value="ci">{{T.Get(lang, "Check-in only")}}</option>
+            <option value="co">{{T.Get(lang, "Check-out only")}}</option>
+            <option value="cl">{{T.Get(lang, "Cleaning only")}}</option>
+          </select>
+          <div class="cal-legend" style="margin:0;flex:1">
+            <span><span class="cleg" style="background:linear-gradient(to right,#ddd 50%,#4a90d9 50%)"></span> {{T.Get(lang, "Check-in")}}</span>
+            <span><span class="cleg" style="background:linear-gradient(to right,#1a5276 50%,#ddd 50%)"></span> {{T.Get(lang, "Check-out")}}</span>
+            <span><span class="cleg" style="background:#d0e8f8"></span> {{T.Get(lang, "Occupied")}}</span>
+            <span><span class="cleg" style="background:linear-gradient(to right,#1a5276 50%,#4a90d9 50%)"></span> {{T.Get(lang, "Transition")}}</span>
+          </div>
+        </div>
+        <div class="cal-grid">{{calHtml}}</div>
+        <div class="occ-section">
+          <div data-stats="full"><p class="occ-title">{{T.Get(lang, "Monthly Occupancy")}} – {{monthName}}</p>{{occBars}}</div>
+          <div data-stats="ci"><p class="occ-title">{{T.Get(lang, "Monthly Check-in Days & Events")}} – {{monthName}}</p>{{ciBars}}</div>
+          <div data-stats="co"><p class="occ-title">{{T.Get(lang, "Monthly Check-out Days & Events")}} – {{monthName}}</p>{{coBars}}</div>
+          <div data-stats="cl"><p class="occ-title">{{T.Get(lang, "Monthly Cleaning Days & Events")}} – {{monthName}}</p>{{clBars}}</div>
+        </div>
         """;
 }
 
@@ -1446,7 +1620,7 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
     }
 
     // Build icon tag row from effective values
-    string IconTags(string? arrTime, string? coTime, bool earlyCI, bool crib, bool sofa, bool bags, string? arrivalMethod = null)
+    string IconTags(string? arrTime, string? coTime, bool earlyCI, bool crib, bool sofa, bool bags, string? arrivalMethod = null, bool ottoman = false)
     {
         var sb = new System.Text.StringBuilder();
         if (!string.IsNullOrWhiteSpace(arrivalMethod))
@@ -1468,6 +1642,7 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         if (earlyCI) sb.Append($"<span class='cal-tag'>⚡ {T.Get(lang, "Early CI")}</span>");
         if (crib)    sb.Append($"<span class='cal-tag'>👶 {T.Get(lang, "Crib")}</span>");
         if (sofa)    sb.Append($"<span class='cal-tag'>🛋️ {T.Get(lang, "Sofa")}</span>");
+        if (ottoman) sb.Append($"<span class='cal-tag'>🛏️ {T.Get(lang, "Ottoman")}</span>");
         if (bags)    sb.Append($"<span class='cal-tag'>🧳 {T.Get(lang, "Bags")}</span>");
         return sb.Length > 0 ? $"<div class='cal-tags'>{sb}</div>" : "";
     }
@@ -1476,20 +1651,21 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
     // mode: "checkin" | "checkout" | "occupied"
     string NoteBtn(ReservationRow? res, CalNote? note,
         string? regArr = null, bool regCrib = false, bool regECI = false, bool regSofa = false,
-        string mode = "checkin")
+        string mode = "checkin", bool regOttoman = false)
     {
         if (!isAdmin || res == null) return "";
-        var ci   = System.Net.WebUtility.HtmlEncode(note?.CheckInTime  ?? regArr ?? "");
-        var co   = System.Net.WebUtility.HtmlEncode(note?.CheckOutTime ?? "");
-        var crib = (note != null ? note.Crib        : regCrib).ToString().ToLower();
-        var eci  = (note != null ? note.EarlyCheckIn: regECI ).ToString().ToLower();
-        var sofa = (note != null ? note.SofaBed     : regSofa).ToString().ToLower();
-        var bags = (note?.LeavingBags ?? false).ToString().ToLower();
-        var name = System.Net.WebUtility.HtmlEncode(res.ReservationName);
+        var ci     = System.Net.WebUtility.HtmlEncode(note?.CheckInTime  ?? regArr ?? "");
+        var co     = System.Net.WebUtility.HtmlEncode(note?.CheckOutTime ?? "");
+        var crib   = (note != null ? note.Crib        : regCrib  ).ToString().ToLower();
+        var eci    = (note != null ? note.EarlyCheckIn: regECI   ).ToString().ToLower();
+        var sofa   = (note != null ? note.SofaBed     : regSofa  ).ToString().ToLower();
+        var ottoman= (note != null ? note.OttomanBed  : regOttoman).ToString().ToLower();
+        var bags   = (note?.LeavingBags ?? false).ToString().ToLower();
+        var name   = System.Net.WebUtility.HtmlEncode(res.ReservationName);
         return $"<button class='cal-note-btn'" +
                $" data-res-id='{res.Id}' data-res-name='{name}' data-mode='{mode}'" +
                $" data-checkin-time='{ci}' data-checkout-time='{co}'" +
-               $" data-crib='{crib}' data-earlyci='{eci}' data-sofabed='{sofa}' data-leavingbags='{bags}'>⚙</button>";
+               $" data-crib='{crib}' data-earlyci='{eci}' data-sofabed='{sofa}' data-ottoman='{ottoman}' data-leavingbags='{bags}'>⚙</button>";
     }
 
     string AptCol(CalAptInfo info)
@@ -1503,7 +1679,8 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         var effArr  = info.NoteIn?.CheckInTime  ?? info.ArrivalTime;
         var effCrib = info.NoteIn != null ? info.NoteIn.Crib         : info.Crib;
         var effECI  = info.NoteIn != null ? info.NoteIn.EarlyCheckIn : info.EarlyCheckIn;
-        var effSofa = info.NoteIn != null ? info.NoteIn.SofaBed      : info.Sofa;
+        var effSofa   = info.NoteIn != null ? info.NoteIn.SofaBed    : info.Sofa;
+        var effOttoman= info.NoteIn != null ? info.NoteIn.OttomanBed : info.Ottoman;
 
         var otherReqHtml = !string.IsNullOrWhiteSpace(info.OtherRequests)
             ? $"<div class='cal-req'>{System.Net.WebUtility.HtmlEncode(info.OtherRequests)}</div>"
@@ -1512,8 +1689,8 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         string body = info.Status switch
         {
             "checkin" => $"""
-                {GuestLine(info.CheckIn, NoteBtn(info.CheckIn, info.NoteIn, info.ArrivalTime, info.Crib, info.EarlyCheckIn, info.Sofa, "checkin"))}
-                {IconTags(effArr, null, effECI, effCrib, effSofa, false, info.ArrivalMethod)}
+                {GuestLine(info.CheckIn, NoteBtn(info.CheckIn, info.NoteIn, info.ArrivalTime, info.Crib, info.EarlyCheckIn, info.Sofa, "checkin", info.Ottoman))}
+                {IconTags(effArr, null, effECI, effCrib, effSofa, false, info.ArrivalMethod, effOttoman)}
                 {otherReqHtml}
                 """,
             "checkout" => $"""
@@ -1530,8 +1707,8 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
                 {GuestLine(info.CheckOut, NoteBtn(info.CheckOut, info.NoteOut, mode: "checkout"))}
                 {IconTags(null, info.NoteOut?.CheckOutTime, false, false, false, info.NoteOut?.LeavingBags ?? false)}
                 <div class='cal-divider' style='margin-top:.5rem'>{T.Get(lang, "↓ Checking In")}</div>
-                {GuestLine(info.CheckIn, NoteBtn(info.CheckIn, info.NoteIn, info.ArrivalTime, info.Crib, info.EarlyCheckIn, info.Sofa, "checkin"))}
-                {IconTags(effArr, null, effECI, effCrib, effSofa, false, info.ArrivalMethod)}
+                {GuestLine(info.CheckIn, NoteBtn(info.CheckIn, info.NoteIn, info.ArrivalTime, info.Crib, info.EarlyCheckIn, info.Sofa, "checkin", info.Ottoman))}
+                {IconTags(effArr, null, effECI, effCrib, effSofa, false, info.ArrivalMethod, effOttoman)}
                 {otherReqHtml}
                 """,
             _ => "<div class='cal-vacant-icon'>🏠</div>"
@@ -2140,7 +2317,7 @@ string UsersPage(
 record CalAptInfo(
     int AptNumber, string Status,
     ReservationRow? CheckIn, ReservationRow? CheckOut, ReservationRow? InStay,
-    string? ArrivalTime, bool EarlyCheckIn, bool Crib, bool Sofa, string? OtherRequests,
+    string? ArrivalTime, bool EarlyCheckIn, bool Crib, bool Sofa, bool Ottoman, string? OtherRequests,
     CalNote? NoteIn, CalNote? NoteOut, int CleaningState = 0, string? ArrivalMethod = null);
 
 record TelegramLogRow(int Id, DateTime At, string EventType, string MessageType, string? Channel, string? Summary, bool IsError);

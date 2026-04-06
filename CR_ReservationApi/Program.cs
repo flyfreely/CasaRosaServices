@@ -22,17 +22,43 @@ var authToken = builder.Configuration["Http:AuthToken"]!;
 
 ManageDb.Init(connStr);
 AdminDb.Init(connStr);
+PublicDb.Init(connStr);
 await AdminDb.EnsureAsync();
 await ManageDb.EnsureAsync();
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Auth (skips /public/*) ────────────────────────────────────────────────────
 app.Use(async (ctx, next) =>
 {
+    var path = ctx.Request.Path.Value ?? "";
+    var isPublic = path.StartsWith("/public/", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("/public", StringComparison.OrdinalIgnoreCase);
+    if (isPublic) { await next(); return; }
     var token = ctx.Request.Query["Token"].FirstOrDefault()
              ?? ctx.Request.Query["token"].FirstOrDefault()
              ?? "";
     if (token != authToken) { ctx.Response.StatusCode = 404; return; }
     await next();
+});
+
+// ── Public endpoints (no auth required) ──────────────────────────────────────
+app.MapGet("/public/reservation/{guid}", async (string guid) =>
+{
+    if (!Guid.TryParse(guid, out var id)) return Results.BadRequest("Invalid GUID.");
+    var info = await PublicDb.GetReservationInfoAsync(id);
+    return info is null ? Results.NotFound() : Results.Ok(info);
+});
+
+app.MapPost("/public/register", async (PublicRegisterRequest req) =>
+{
+    try
+    {
+        await PublicDb.SaveRegistrationAsync(req);
+        return Results.Ok(new { ok = true });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
 });
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -65,6 +91,7 @@ app.MapGet("/manage/reservations/{id:int}", async (int id) =>
 app.MapPost("/manage/reservations", async (ReservationCreateRequest req) =>
 {
     var id = await ManageDb.CreateAsync(req);
+    if (id == -1) return Results.Conflict(new { error = "overlap" });
     return Results.Ok(new { id });
 });
 

@@ -26,6 +26,13 @@ services:
     depends_on:
       - cr_emailchecker
 
+  cr_register:
+    image: cesarpenafiel2/cr_register:latest
+    ports:
+      - "8105:8105"
+    depends_on:
+      - cr_reservationapi
+
   cr_reservationapi:
     image: cesarpenafiel2/cr_reservationapi:latest
     ports:

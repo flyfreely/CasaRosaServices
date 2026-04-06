@@ -198,7 +198,7 @@ static class ReservationPages
         """ : "";
         return $"""
             <header>
-              <div class="brand"><img class="brand-text" src="/casarosa.png" alt="Casa Rosa"/></div>
+              <div class="brand"><a href="/calendar"><img class="brand-text" src="/casarosa.png" alt="Casa Rosa"/></a></div>
               <button class="burger" onclick="this.closest('header').querySelector('nav').classList.toggle('open')" aria-label="Menu">☰</button>
               <nav>
                 <a href="/calendar"     class="{(active == "calendar"     ? "on" : "")}">{T.Get(lang, "Calendar")}</a>
@@ -417,7 +417,7 @@ static class ReservationPages
     }
 
     // ── New reservation form ──────────────────────────────────────────────────
-    public static string NewForm(string lang = "en", bool isAdmin = false) => $"""
+    public static string NewForm(string lang = "en", bool isAdmin = false, string error = "") => $"""
         <!DOCTYPE html>
         <html lang="{lang}">
         <head>
@@ -433,6 +433,7 @@ static class ReservationPages
             <div class="breadcrumb"><a href="/reservations">{T.Get(lang, "← Reservations")}</a></div>
             <div class="page-header"><h1>{T.Get(lang, "New Reservation")}</h1></div>
             <div class="card">
+              {(string.IsNullOrEmpty(error) ? "" : $"""<div class="alert alert-error" style="margin-bottom:1rem;padding:.75rem 1rem;background:#fde8e8;border-left:4px solid #e53e3e;border-radius:6px;color:#c53030">{error}</div>""")}
               <form method="post" action="/reservations/new">
                 <div class="grid2">
                   <div>
@@ -582,6 +583,8 @@ static class ReservationPages
                               <input type="email" name="invoiceEmail" value="{H(reg.InvoiceEmail)}"/></div>
                           </div>
                         </details>
+                        <div class="field" style="margin-top:.5rem"><label>SEF / AIMA</label>
+                          <input type="text" name="sef" value="{H(reg.Sef)}"/></div>
                       </div>
                     </div>
                     {(isAdmin ? $"""<button class="btn btn-primary" style="margin-top:.5rem" type="submit">{T.Get(lang, "Save Registration")}</button>""" : "")}
@@ -600,6 +603,10 @@ static class ReservationPages
                   <td>{H(g.Name)}</td>
                   <td>{H(g.Nationality)}</td>
                   <td>{(age.HasValue ? age.ToString() : "—")}</td>
+                  <td>{H(g.Residency)}</td>
+                  <td>{H(g.CountryOfBirth)}</td>
+                  <td>{H(g.TypeOfId)}</td>
+                  <td>{H(g.IdNumber)}</td>
                   <td>
                     {(isAdmin ? $"<form method=\"post\" action=\"/reservations/{res.Id}/guests/{g.Id}/delete\" style=\"margin:0\"><button class=\"btn btn-danger btn-sm\" type=\"submit\" onclick=\"return confirm('{T.Get(lang, "Remove this guest?")}')\">{T.Get(lang, "Remove")}</button></form>" : "")}</td>
                 </tr>
@@ -608,7 +615,7 @@ static class ReservationPages
 
         var addGuestForm = reg != null && isAdmin ? $"""
             <tr class="add-guest-row">
-              <td colspan="4">
+              <td colspan="8">
                 <form method="post" action="/reservations/{res.Id}/guests"
                       style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
                   <input type="hidden" name="registrationId" value="{reg.Id}"/>
@@ -621,17 +628,29 @@ static class ReservationPages
                   <div class="field" style="margin:0;flex:1;min-width:120px">
                     <label>{T.Get(lang, "Date of Birth")}</label><input type="date" name="guestDob"/>
                   </div>
+                  <div class="field" style="margin:0;flex:1;min-width:100px">
+                    <label>Residency</label><input type="text" name="guestResidency" placeholder="{T.Get(lang, "Country")}"/>
+                  </div>
+                  <div class="field" style="margin:0;flex:1;min-width:100px">
+                    <label>Country of Birth</label><input type="text" name="guestCob" placeholder="{T.Get(lang, "Country")}"/>
+                  </div>
+                  <div class="field" style="margin:0;flex:1;min-width:80px">
+                    <label>ID Type</label><input type="text" name="guestTypeOfId" placeholder="Passport"/>
+                  </div>
+                  <div class="field" style="margin:0;flex:1;min-width:100px">
+                    <label>ID Number</label><input type="text" name="guestIdNumber"/>
+                  </div>
                   <button class="btn btn-secondary" type="submit">{T.Get(lang, "Add Guest")}</button>
                 </form>
               </td>
             </tr>
-            """ : $"""<tr><td colspan="4" style="color:#aaa;font-size:.85rem;padding:.6rem">{T.Get(lang, "Create a registration first to add guests.")}</td></tr>""";
+            """ : $"""<tr><td colspan="8" style="color:#aaa;font-size:.85rem;padding:.6rem">{T.Get(lang, "Create a registration first to add guests.")}</td></tr>""";
 
         var guestsSection = $"""
             <div class="card">
               <p class="section-title">{T.Get(lang, "Guests")} ({guests.Count})</p>
               <table class="guest-table">
-                <thead><tr><th>{T.Get(lang, "Name")}</th><th>{T.Get(lang, "Nationality")}</th><th>{T.Get(lang, "Age")}</th><th></th></tr></thead>
+                <thead><tr><th>{T.Get(lang, "Name")}</th><th>{T.Get(lang, "Nationality")}</th><th>{T.Get(lang, "Age")}</th><th>Residency</th><th>Country of Birth</th><th>ID Type</th><th>ID Number</th><th></th></tr></thead>
                 <tbody>
                   {guestRows}
                   {addGuestForm}

@@ -145,12 +145,56 @@ static class AdminDb
             Console.WriteLine("[AdminDb] Default user created: user / password");
         }
 
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Registration' AND COLUMN_NAME = 'Sef')
+            ALTER TABLE dbo.Registration ADD Sef NVARCHAR(100) NULL
+            """);
+
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Guest' AND COLUMN_NAME = 'Residency')
+            ALTER TABLE dbo.Guest ADD Residency NVARCHAR(100) NULL
+            """);
+
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Guest' AND COLUMN_NAME = 'CountryOfBirth')
+            ALTER TABLE dbo.Guest ADD CountryOfBirth NVARCHAR(100) NULL
+            """);
+
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Guest' AND COLUMN_NAME = 'TypeOfId')
+            ALTER TABLE dbo.Guest ADD TypeOfId NVARCHAR(50) NULL
+            """);
+
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Guest' AND COLUMN_NAME = 'IdNumber')
+            ALTER TABLE dbo.Guest ADD IdNumber NVARCHAR(100) NULL
+            """);
+
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'Registration' AND COLUMN_NAME = 'SubmittedAt')
+            ALTER TABLE dbo.Registration ADD SubmittedAt DATETIME NULL
+            """);
+
         await SeedConfig(conn, "briefing_time",               "18:00");
         await SeedConfig(conn, "briefing_channel",             "-5129864639");
         await SeedConfig(conn, "today_briefing_time",         "09:00");
         await SeedConfig(conn, "today_briefing_channel",      "-5129864639");
         await SeedConfig(conn, "triple_cleaning_time",        "08:00");
         await SeedConfig(conn, "triple_cleaning_channel",     "-5186091931");
+        await SeedConfig(conn, "crib_alert_time",             "08:00");
+        await SeedConfig(conn, "crib_alert_channel",          "-5186091931");
         Console.WriteLine("[AdminDb] Tables ready.");
     }
 

@@ -85,6 +85,23 @@ static class ManageDb
         var nights = req.CheckOutDate.DayNumber - req.CheckInDate.DayNumber;
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
+
+        // Overlap check: any enabled reservation on same apt whose dates overlap
+        using (var chk = new SqlCommand("""
+            SELECT COUNT(1) FROM Reservation
+            WHERE Enabled = 1
+              AND ApartmentNumber = @apt
+              AND CheckInDate  < @checkout
+              AND CheckOutDate > @checkin
+            """, conn))
+        {
+            chk.Parameters.AddWithValue("@apt",      req.ApartmentNumber);
+            chk.Parameters.Add(DateParam("@checkin",  req.CheckInDate));
+            chk.Parameters.Add(DateParam("@checkout", req.CheckOutDate));
+            var count = Convert.ToInt32(await chk.ExecuteScalarAsync());
+            if (count > 0) return -1;
+        }
+
         using var cmd = new SqlCommand("""
             INSERT INTO Reservation
                 (Enabled, CreatedAt, ModifiedAt, Guid, ApartmentNumber, ConfirmationCode,
@@ -173,7 +190,7 @@ static class ManageDb
         using var cmd = new SqlCommand("""
             SELECT Id, guid, Email, ArrivalMethod, ArrivalTime, FlightNumber, ArrivalNotes,
                    EarlyCheckInRequested, CribSetup, SofaSetup, FoldableBed, OtherRequests,
-                   InvoiceNif, InvoiceName, InvoiceAddress, InvoiceEmailAddress
+                   InvoiceNif, InvoiceName, InvoiceAddress, InvoiceEmailAddress, Sef
             FROM   Registration WHERE guid = @guid
             """, conn);
         cmd.Parameters.AddWithValue("@guid", regGuid.ToString());
@@ -186,7 +203,7 @@ static class ManageDb
             B(rd,"EarlyCheckInRequested"), B(rd,"CribSetup"), B(rd,"SofaSetup"),
             B(rd,"FoldableBed"), S(rd,"OtherRequests"),
             S(rd,"InvoiceNif"), S(rd,"InvoiceName"),
-            S(rd,"InvoiceAddress"), S(rd,"InvoiceEmailAddress"));
+            S(rd,"InvoiceAddress"), S(rd,"InvoiceEmailAddress"), S(rd,"Sef"));
     }
 
     // ── Create registration ───────────────────────────────────────────────────
@@ -233,7 +250,8 @@ static class ManageDb
                 InvoiceNif          = @nif,
                 InvoiceName         = @invName,
                 InvoiceAddress      = @invAddr,
-                InvoiceEmailAddress = @invEmail
+                InvoiceEmailAddress = @invEmail,
+                Sef                 = @sef
             WHERE Id = @id
             """, conn);
         cmd.Parameters.AddWithValue("@id",       regId);
@@ -251,6 +269,7 @@ static class ManageDb
         cmd.Parameters.AddWithValue("@invName",  req.InvoiceName   ?? "");
         cmd.Parameters.AddWithValue("@invAddr",  req.InvoiceAddr   ?? "");
         cmd.Parameters.AddWithValue("@invEmail", req.InvoiceEmail  ?? "");
+        cmd.Parameters.AddWithValue("@sef",      req.Sef           ?? "");
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -261,12 +280,13 @@ static class ManageDb
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand(
-            "SELECT Id, RegistrationId, Name, Nationality, BirthDate FROM Guest WHERE RegistrationId = @id ORDER BY Id",
+            "SELECT Id, RegistrationId, Name, Nationality, BirthDate, Residency, CountryOfBirth, TypeOfId, IdNumber FROM Guest WHERE RegistrationId = @id ORDER BY Id",
             conn);
         cmd.Parameters.AddWithValue("@id", regId);
         using var rd = await cmd.ExecuteReaderAsync();
         while (await rd.ReadAsync())
-            list.Add(new(I(rd,"Id"), I(rd,"RegistrationId"), S(rd,"Name"), S(rd,"Nationality"), DT(rd,"BirthDate")));
+            list.Add(new(I(rd,"Id"), I(rd,"RegistrationId"), S(rd,"Name"), S(rd,"Nationality"), DT(rd,"BirthDate"),
+                S(rd,"Residency"), S(rd,"CountryOfBirth"), S(rd,"TypeOfId"), S(rd,"IdNumber")));
         return list;
     }
 
@@ -275,16 +295,20 @@ static class ManageDb
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand("""
-            INSERT INTO Guest (RegistrationId, Name, Nationality, BirthDate)
-            VALUES (@regId, @name, @nat, @dob)
+            INSERT INTO Guest (RegistrationId, Name, Nationality, BirthDate, Residency, CountryOfBirth, TypeOfId, IdNumber)
+            VALUES (@regId, @name, @nat, @dob, @residency, @cob, @typeOfId, @idNumber)
             """, conn);
-        cmd.Parameters.AddWithValue("@regId", regId);
-        cmd.Parameters.AddWithValue("@name",  req.Name        ?? "");
-        cmd.Parameters.AddWithValue("@nat",   req.Nationality ?? "");
+        cmd.Parameters.AddWithValue("@regId",     regId);
+        cmd.Parameters.AddWithValue("@name",      req.Name           ?? "");
+        cmd.Parameters.AddWithValue("@nat",       req.Nationality    ?? "");
         if (DateTime.TryParse(req.BirthDate, out var dob))
             cmd.Parameters.AddWithValue("@dob", dob);
         else
             cmd.Parameters.AddWithValue("@dob", DBNull.Value);
+        cmd.Parameters.AddWithValue("@residency", req.Residency      ?? "");
+        cmd.Parameters.AddWithValue("@cob",       req.CountryOfBirth ?? "");
+        cmd.Parameters.AddWithValue("@typeOfId",  req.TypeOfId       ?? "");
+        cmd.Parameters.AddWithValue("@idNumber",  req.IdNumber       ?? "");
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -321,14 +345,14 @@ static class ManageDb
         using var conn = new SqlConnection(_cs);
         await conn.OpenAsync();
         using var cmd = new SqlCommand("""
-            SELECT ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, LeavingBags
+            SELECT ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, OttomanBed, LeavingBags
             FROM ReservationCalNote WHERE ReservationId = @id
             """, conn);
         cmd.Parameters.AddWithValue("@id", reservationId);
         using var rd = await cmd.ExecuteReaderAsync();
         if (!await rd.ReadAsync()) return null;
         return new(I(rd,"ReservationId"), S(rd,"CheckInTime"), S(rd,"CheckOutTime"),
-            B(rd,"Crib"), B(rd,"EarlyCheckIn"), B(rd,"SofaBed"), B(rd,"LeavingBags"));
+            B(rd,"Crib"), B(rd,"EarlyCheckIn"), B(rd,"SofaBed"), B(rd,"OttomanBed"), B(rd,"LeavingBags"));
     }
 
     public static async Task UpsertCalNoteAsync(int reservationId, CalNoteRequest req)
@@ -340,10 +364,10 @@ static class ManageDb
             USING (SELECT @id AS ReservationId) AS s ON t.ReservationId = s.ReservationId
             WHEN MATCHED THEN
                 UPDATE SET CheckInTime=@ci, CheckOutTime=@co, Crib=@crib,
-                           EarlyCheckIn=@earlyCI, SofaBed=@sofa, LeavingBags=@bags
+                           EarlyCheckIn=@earlyCI, SofaBed=@sofa, OttomanBed=@ottoman, LeavingBags=@bags
             WHEN NOT MATCHED THEN
-                INSERT (ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, LeavingBags)
-                VALUES (@id, @ci, @co, @crib, @earlyCI, @sofa, @bags);
+                INSERT (ReservationId, CheckInTime, CheckOutTime, Crib, EarlyCheckIn, SofaBed, OttomanBed, LeavingBags)
+                VALUES (@id, @ci, @co, @crib, @earlyCI, @sofa, @ottoman, @bags);
             """, conn);
         cmd.Parameters.AddWithValue("@id",      reservationId);
         cmd.Parameters.AddWithValue("@ci",      (object?)req.CheckInTime  ?? DBNull.Value);
@@ -351,6 +375,7 @@ static class ManageDb
         cmd.Parameters.AddWithValue("@crib",    req.Crib        ? 1 : 0);
         cmd.Parameters.AddWithValue("@earlyCI", req.EarlyCheckIn? 1 : 0);
         cmd.Parameters.AddWithValue("@sofa",    req.SofaBed     ? 1 : 0);
+        cmd.Parameters.AddWithValue("@ottoman", req.OttomanBed  ? 1 : 0);
         cmd.Parameters.AddWithValue("@bags",    req.LeavingBags ? 1 : 0);
         await cmd.ExecuteNonQueryAsync();
     }

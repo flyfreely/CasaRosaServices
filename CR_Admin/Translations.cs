@@ -135,6 +135,8 @@ static class T
         ["Crib"]              = "Кроватка",
         ["Crib needed:"]      = "Нужна кроватка:",
         ["Sofa bed"]          = "Диван-кровать",
+        ["Ottoman"]           = "Оттоманка",
+        ["Ottoman bed"]       = "Оттоманка",
         ["Foldable bed"]      = "Раскладная кровать",
         ["Other Requests"]    = "Другие пожелания",
         ["Invoice Details"]   = "Данные для счёта",
@@ -157,6 +159,7 @@ static class T
         // ── New reservation ───────────────────────────────────────────────────────
         ["Create Reservation"] = "Создать бронирование",
         ["Cancel"]             = "Отмена",
+        ["A reservation for this apartment already exists for the selected dates."] = "Уже есть активное бронирование на эти даты для этого апартамента.",
 
         // ── Calendar ─────────────────────────────────────────────────────────────
         ["Today"]              = "Сегодня",
@@ -181,6 +184,14 @@ static class T
         ["Apt 3 check-in"]     = "Апт 3 заезд",
         ["Apt 3 check-out"]    = "Апт 3 выезд",
         ["Transition"]         = "Переход",
+        ["All 3 apartments checking out! Heavy cleaning day."] = "Все 3 апартамента выезжают! Большой день уборки.",
+        ["Total occupied apartment-days this week"] = "Всего занятых апартаменто-дней на этой неделе",
+        ["days with check-ins"]  = "дней с заездами",
+        ["days with check-outs"] = "дней с выездами",
+        ["days with cleanings"]  = "дней с уборками",
+        ["this week"]            = "на этой неделе",
+        ["Weekly totals: occupied apartments (Full), check-in days & events, check-out days & events, or cleaning days & events — depending on the selected mode"] =
+            "Итоги недели: занятые апартаменты (Всё), дни и события заездов, выездов или уборок — в зависимости от выбранного режима",
 
         // ── Reminders ────────────────────────────────────────────────────────────
         ["Scheduled (Portugal)"] = "Запланировано (Португалия)",
@@ -232,6 +243,25 @@ static class T
 
         // ── Occupancy stats ──────────────────────────────────────────────────────
         ["Monthly Occupancy"]     = "Заполняемость за месяц",
+        ["Monthly Check-ins"]     = "Заездов за месяц",
+        ["Monthly Check-outs"]    = "Выездов за месяц",
+        ["Monthly Cleanings"]     = "Уборок за месяц",
+        ["Monthly Check-in Days & Events"]  = "Дни и события заездов за месяц",
+        ["Monthly Check-out Days & Events"] = "Дни и события выездов за месяц",
+        ["Monthly Cleaning Days & Events"]  = "Дни и события уборок за месяц",
+        ["Full"]                  = "Всё",
+        ["Check-in only"]         = "Только заезды",
+        ["Check-out only"]        = "Только выезды",
+        ["Cleaning only"]         = "Только уборки",
+        ["check-ins"]             = "заездов",
+        ["check-outs"]            = "выездов",
+        ["cleanings"]             = "уборок",
+        ["check-in days"]         = "дней с заездами",
+        ["check-in events"]       = "заездов всего",
+        ["check-out days"]        = "дней с выездами",
+        ["check-out events"]      = "выездов всего",
+        ["cleaning days"]         = "дней уборки",
+        ["cleaning events"]       = "уборок всего",
         ["Occupancy"]             = "Заполняемость",
         ["days"]                  = "дней",
         ["occupied"]              = "занято",

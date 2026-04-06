@@ -54,7 +54,8 @@ record RegistrationDetail(
     string? InvoiceNif,
     string? InvoiceName,
     string? InvoiceAddr,
-    string? InvoiceEmail);
+    string? InvoiceEmail,
+    string? Sef = null);
 
 record CalNote(
     int     ReservationId,
@@ -63,6 +64,7 @@ record CalNote(
     bool    Crib,
     bool    EarlyCheckIn,
     bool    SofaBed,
+    bool    OttomanBed,
     bool    LeavingBags);
 
 record CalNoteRequest(
@@ -71,6 +73,7 @@ record CalNoteRequest(
     bool    Crib,
     bool    EarlyCheckIn,
     bool    SofaBed,
+    bool    OttomanBed,
     bool    LeavingBags);
 
 record GuestRow(
@@ -78,7 +81,11 @@ record GuestRow(
     int       RegistrationId,
     string?   Name,
     string?   Nationality,
-    DateTime? BirthDate);
+    DateTime? BirthDate,
+    string?   Residency      = null,
+    string?   CountryOfBirth = null,
+    string?   TypeOfId       = null,
+    string?   IdNumber       = null);
 
 record CleaningRow(DateOnly Date, int ApartmentNumber, int State);
 record AdminUserRow(int Id, string Username, string Role, DateTime CreatedAt, string Language = "en", string? GoogleEmail = null);

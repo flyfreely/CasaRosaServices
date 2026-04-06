@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Casa Rosa Registration</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f5f5f5;font-size:18px;line-height:1.5}
+body.rtl{direction:rtl;text-align:right}
+.header{background:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 2px 4px rgba(0,0,0,.1);position:relative}
+.header-logo{height:50px;width:auto}
+.header-house{height:50px}
+/* Language picker */
+.lang-picker{position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+body.rtl .lang-picker{right:auto;left:16px}
+.lang-trigger{background:rgba(0,0,0,.06);border:none;color:#333;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;gap:6px;white-space:nowrap;font-weight:600}
+.lang-trigger:hover{background:rgba(0,0,0,.12)}
+.lang-arrow{font-size:11px;opacity:.85}
+.lang-menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.2);min-width:190px;z-index:500;display:none;overflow:hidden;max-height:70vh;overflow-y:auto}
+body.rtl .lang-menu{right:auto;left:0}
+.lang-menu.open{display:block}
+.lang-opt{padding:10px 16px;cursor:pointer;font-size:15px;display:flex;align-items:center;gap:10px}
+.lang-opt:hover{background:#fff0ee}
+.lang-opt.active{background:#fde8e6;font-weight:600}
+.lang-flag{width:24px;height:16px;object-fit:contain;border-radius:2px;flex-shrink:0}
+.lang-trigger .lang-flag{width:22px;height:15px}
+.card{max-width:700px;margin:24px auto;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:24px}
+.step-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.step-num{width:50px;height:50px;border-radius:50%;background:#FA8072;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-title{font-size:28px;font-weight:bold;color:#333}
+.field{margin-bottom:18px}
+label{display:block;font-weight:600;margin-bottom:6px;color:#444}
+input[type=text],input[type=email],select,textarea{width:100%;padding:12px 14px;font-size:17px;border:2px solid #ccc;border-radius:8px;outline:none;transition:border-color .2s;background:#fff}
+input:focus,select:focus,textarea:focus{border-color:#FA8072}
+input[readonly]:not(.cs-input){background:#f5f5f5;color:#666;cursor:default}
+textarea{min-height:80px;resize:vertical}
+.guest-card{background:#f9f9f9;border:1px solid #ddd;border-radius:10px;padding:18px;margin-bottom:18px}
+.guest-label{font-size:20px;font-weight:bold;color:#FA8072;margin-bottom:14px}
+.hint{font-size:14px;color:#888;margin-top:4px}
+.info-box{background:#e8f4f8;border-left:4px solid #2980b9;padding:12px 16px;border-radius:6px;margin-bottom:16px;font-size:16px;color:#2c3e50}
+.warn-box{background:#fef3cd;border-left:4px solid #f0ad4e;padding:12px 16px;border-radius:6px;margin-bottom:16px;font-size:16px;color:#7a5a00}
+body.rtl .info-box{border-left:none;border-right:4px solid #2980b9}
+body.rtl .warn-box{border-left:none;border-right:4px solid #f0ad4e}
+.field-error input,.field-error select,.field-error .cs-input{border-color:#e53e3e!important;background:#fff5f5!important}
+.field-error>label{color:#e53e3e}
+.guest-card.has-error{border-color:#e53e3e}
+.step-error{background:#fde8e8;border-left:4px solid #e53e3e;border-radius:6px;padding:.65rem 1rem;margin-bottom:14px;color:#c53030;font-size:.95rem;display:none}
+.step-error.visible{display:block}
+.check-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.check-row input[type=checkbox]{width:22px;height:22px;cursor:pointer;flex-shrink:0}
+.check-row label{margin:0;font-weight:normal;cursor:pointer}
+.sofa-option{margin-bottom:16px}
+.sofa-img{width:100%;max-width:340px;border-radius:8px;margin-top:8px;display:block;cursor:pointer;border:2px solid transparent;transition:border-color .2s}
+.sofa-img:hover{border-color:#FA8072}
+.btn-row{display:flex;justify-content:space-between;margin-top:24px;gap:12px}
+.btn{padding:12px 28px;font-size:18px;border:2px solid #FA8072;border-radius:8px;cursor:pointer;font-weight:600;transition:background .2s,color .2s}
+.btn-primary{background:#FA8072;color:#fff;border-color:#FA8072}
+.btn-primary:hover{background:#e8695a;border-color:#e8695a}
+.btn-outline{background:#fff;color:#FA8072;border-color:#FA8072}
+.btn-outline:hover{background:#fff0ee}
+.btn-sm{padding:8px 16px;font-size:15px;border:2px solid #FA8072;border-radius:6px;background:#fff;color:#FA8072;cursor:pointer;margin-top:6px;font-weight:600}
+.btn-sm:hover{background:#fff0ee}
+.hidden{display:none!important}
+/* Custom searchable select */
+.cs-wrap{position:relative}
+.cs-input{width:100%;padding:12px 14px;font-size:17px;border:2px solid #ccc;border-radius:8px;outline:none;background:#fff;cursor:pointer}
+.cs-input:focus{border-color:#FA8072}
+.cs-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid #FA8072;border-top:none;border-radius:0 0 8px 8px;max-height:260px;overflow-y:auto;z-index:999;display:none}
+.cs-dropdown.open{display:block}
+.cs-search{padding:10px 12px;border-bottom:1px solid #eee}
+.cs-search input{width:100%;padding:8px 10px;font-size:16px;border:1px solid #ccc;border-radius:6px;outline:none}
+.cs-list{}
+.cs-opt{padding:10px 14px;cursor:pointer;font-size:16px}
+.cs-opt:hover,.cs-opt.selected{background:#fdf0ef;color:#FA8072}
+.cs-none{padding:10px 14px;color:#999;font-size:16px}
+/* Modal overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.overlay.hidden{display:none}
+.modal{background:#fff;border-radius:14px;padding:36px 40px;text-align:center;max-width:380px;width:90%}
+.modal img{width:180px;margin-bottom:20px}
+.modal h2{font-size:22px;color:#333;margin-bottom:12px}
+.modal p{font-size:16px;color:#666;margin-bottom:20px}
+@media(max-width:600px){
+  .card{margin:12px;padding:16px}
+  .btn{padding:10px 18px;font-size:16px}
+  .step-title{font-size:22px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img class="header-logo" src="images/casarosa.png" alt="Casa Rosa">
+  <img class="header-house" id="headerImg" src="images/CasaRosa.jpg" alt="Casa Rosa">
+  <div class="lang-picker">
+    <button class="lang-trigger" id="langTrigger" onclick="toggleLangMenu(event)">
+      <img class="lang-flag" id="langFlag" src="images/flags/gb.png" alt="EN">
+      <span id="langCode">EN</span>
+      <span class="lang-arrow">▾</span>
+    </button>
+    <div class="lang-menu" id="langMenu">
+      <div class="lang-opt" data-lang="en"  onclick="setLang('en')"><img class="lang-flag" src="images/flags/gb.png" alt=""> EN – English</div>
+      <div class="lang-opt" data-lang="pt"  onclick="setLang('pt')"><img class="lang-flag" src="images/flags/pt.png" alt=""> PT – Português</div>
+      <div class="lang-opt" data-lang="es"  onclick="setLang('es')"><img class="lang-flag" src="images/flags/es.png" alt=""> ES – Español</div>
+      <div class="lang-opt" data-lang="fr"  onclick="setLang('fr')"><img class="lang-flag" src="images/flags/fr.png" alt=""> FR – Français</div>
+      <div class="lang-opt" data-lang="de"  onclick="setLang('de')"><img class="lang-flag" src="images/flags/de.png" alt=""> DE – Deutsch</div>
+      <div class="lang-opt" data-lang="it"  onclick="setLang('it')"><img class="lang-flag" src="images/flags/it.png" alt=""> IT – Italiano</div>
+      <div class="lang-opt" data-lang="ru"  onclick="setLang('ru')"><img class="lang-flag" src="images/flags/ru.png" alt=""> RU – Русский</div>
+      <div class="lang-opt" data-lang="ua"  onclick="setLang('ua')"><img class="lang-flag" src="images/flags/ua.png" alt=""> UA – Українська</div>
+      <div class="lang-opt" data-lang="ar"  onclick="setLang('ar')"><img class="lang-flag" src="images/flags/sa.png" alt=""> AR – العربية</div>
+      <div class="lang-opt" data-lang="zh"  onclick="setLang('zh')"><img class="lang-flag" src="images/flags/cn.png" alt=""> ZH – 中文</div>
+      <div class="lang-opt" data-lang="he"  onclick="setLang('he')"><img class="lang-flag" src="images/flags/il.png" alt=""> HE – עברית</div>
+      <div class="lang-opt" data-lang="ja"  onclick="setLang('ja')"><img class="lang-flag" src="images/flags/jp.png" alt=""> JA – 日本語</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step-header">
+    <div class="step-num" id="stepNum">1</div>
+    <div class="step-title" id="stepTitle"></div>
+  </div>
+
+  <!-- Step 0: Reservation -->
+  <div id="step0">
+    <div id="warnAlreadySubmitted" class="warn-box hidden"></div>
+    <div id="warnNotFound" class="warn-box hidden"></div>
+    <p id="greetingText" style="margin-bottom:16px;font-size:18px"></p>
+
+    <div class="field">
+      <label id="lblGuests"></label>
+      <select id="guestCount" onchange="onGuestCountChange()">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label id="lblCheckIn"></label>
+      <input type="text" id="checkInDate" placeholder="DD/MM/YYYY">
+    </div>
+
+    <div class="field">
+      <label id="lblCheckOut"></label>
+      <input type="text" id="checkOutDate" placeholder="DD/MM/YYYY">
+    </div>
+
+    <div class="field">
+      <label id="lblResName"></label>
+      <input type="text" id="reservationName" oninput="onResNameInput()">
+    </div>
+  </div>
+
+  <!-- Step 1: Guests -->
+  <div id="step1" class="hidden">
+    <div class="info-box" id="guestInfoBox"><span id="guestInfoText"></span><br><strong id="guestInfoPrivacy"></strong></div>
+    <div class="step-error" id="step1Error"></div>
+    <div id="guestCards"></div>
+  </div>
+
+  <!-- Step 2: Arrival -->
+  <div id="step2" class="hidden">
+    <div class="info-box" id="arrivalInfoText"></div>
+
+    <div class="field">
+      <label id="lblArrivalTime"></label>
+      <select id="arrivalTime" onchange="onArrivalTimeChange()">
+        <option value="Before 11AM">Before 11AM</option>
+        <option value="11AM-12PM">11AM-12PM</option>
+        <option value="12PM-1PM">12PM-1PM</option>
+        <option value="1PM-2PM">1PM-2PM</option>
+        <option value="2PM-3PM">2PM-3PM</option>
+        <option value="3PM-4PM">3PM-4PM</option>
+        <option value="4PM-5PM">4PM-5PM</option>
+        <option value="5PM-6PM">5PM-6PM</option>
+        <option value="6PM-7PM">6PM-7PM</option>
+        <option value="7PM-10PM">7PM-10PM</option>
+        <option value="After 10PM">After 10PM</option>
+      </select>
+    </div>
+
+    <div id="earlyCheckInRow" class="hidden">
+      <div class="check-row">
+        <input type="checkbox" id="earlyCheckIn">
+        <label for="earlyCheckIn" id="lblEarlyCheckIn"></label>
+      </div>
+      <div id="earlyCheckInNote" class="hint" style="margin-bottom:12px"></div>
+    </div>
+
+    <div class="field">
+      <label id="lblArrivalMethod"></label>
+      <select id="arrivalMethod" onchange="onArrivalMethodChange()">
+        <option value="Flight+Taxi/Uber">Flight+Taxi/Uber</option>
+        <option value="Flight+Public Transportation">Flight+Public Transportation</option>
+        <option value="I'll drive">I'll drive</option>
+        <option value="Train">Train</option>
+        <option value="Bus">Bus</option>
+        <option value="Not sure">Not sure</option>
+      </select>
+    </div>
+
+    <div id="trainNote" class="hint hidden" style="margin-bottom:12px"></div>
+    <div id="driveNote" class="hint hidden" style="margin-bottom:12px"></div>
+
+    <div id="flightRow" class="field hidden">
+      <label id="lblFlight"></label>
+      <input type="text" id="flightNumber" style="max-width:220px">
+    </div>
+
+    <div class="field">
+      <label id="lblArrivalNotes"></label>
+      <textarea id="arrivalNotes"></textarea>
+    </div>
+  </div>
+
+  <!-- Step 3: Accommodations -->
+  <div id="step3" class="hidden">
+    <div id="cribRow" class="hidden">
+      <div class="check-row">
+        <input type="checkbox" id="cribSetup">
+        <label for="cribSetup" id="lblCrib"></label>
+      </div>
+    </div>
+    <div id="sofaRowApt2" class="hidden">
+      <div class="sofa-option">
+        <div class="check-row">
+          <input type="checkbox" id="sofaSetupApt2" onchange="updateSofaImage('apt2sofa')">
+          <label for="sofaSetupApt2" id="lblSofaApt2"></label>
+        </div>
+        <img id="imgApt2Sofa" src="images/2_sofa_closed.jpg" class="sofa-img" onclick="document.getElementById('sofaSetupApt2').click()">
+      </div>
+      <div class="sofa-option">
+        <div class="check-row">
+          <input type="checkbox" id="ottomanSetupApt2" onchange="updateSofaImage('apt2ottoman')">
+          <label for="ottomanSetupApt2" id="lblOttomanApt2"></label>
+        </div>
+        <img id="imgApt2Ottoman" src="images/2_ottoman_closed.jpg" class="sofa-img" onclick="document.getElementById('ottomanSetupApt2').click()">
+      </div>
+    </div>
+    <div id="sofaRowApt3" class="hidden">
+      <div class="sofa-option">
+        <div class="check-row">
+          <input type="checkbox" id="sofaSetupApt3" onchange="updateSofaImage('apt3sofa')">
+          <label for="sofaSetupApt3" id="lblSofaApt3"></label>
+        </div>
+        <img id="imgApt3Sofa" src="images/3_closed.jpg" class="sofa-img" onclick="document.getElementById('sofaSetupApt3').click()">
+      </div>
+    </div>
+    <div class="field">
+      <label id="lblOtherRequests"></label>
+      <textarea id="otherRequests"></textarea>
+    </div>
+  </div>
+
+  <!-- Step 4: Invoice -->
+  <div id="step4" class="hidden">
+    <div class="info-box" id="invoiceInfoText"></div>
+    <div class="field">
+      <label id="lblNif"></label>
+      <input type="text" id="invoiceNif" style="max-width:180px">
+    </div>
+    <div class="field">
+      <label id="lblInvName"></label>
+      <input type="text" id="invoiceName">
+    </div>
+    <div class="field">
+      <label id="lblInvAddr"></label>
+      <input type="text" id="invoiceAddress">
+    </div>
+    <div class="field">
+      <label id="lblInvEmail"></label>
+      <input type="email" id="invoiceEmail">
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-outline" id="btnPrev" onclick="prevStep()"></button>
+    <button class="btn btn-primary" id="btnNext" onclick="nextStep()"></button>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="overlay hidden" id="modalSending">
+  <div class="modal">
+    <img src="images/Sending.png" alt="">
+    <h2 id="modalSendingText"></h2>
+  </div>
+</div>
+<div class="overlay hidden" id="modalSaved">
+  <div class="modal">
+    <img src="images/Sent.png" alt="">
+    <h2 id="modalSavedText"></h2>
+  </div>
+</div>
+<div class="overlay hidden" id="modalError">
+  <div class="modal">
+    <h2 id="modalErrorText"></h2>
+    <p id="modalErrorSub"></p>
+    <button class="btn btn-primary" onclick="closeErrorModal()" id="btnRetry"></button>
+  </div>
+</div>
+<div class="overlay hidden" id="modalFullName" onclick="document.getElementById('modalFullName').classList.add('hidden')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+    <div style="font-size:48px;margin-bottom:12px">🇵🇹</div>
+    <h2 id="modalFullNameTitle" style="font-size:20px;margin-bottom:10px"></h2>
+    <p id="modalFullNameSub" style="font-size:15px;color:#555;margin-bottom:8px"></p>
+    <p id="modalFullNameGuest" style="font-size:15px;font-weight:600;color:#e53e3e;margin-bottom:20px"></p>
+    <button class="btn btn-primary" onclick="document.getElementById('modalFullName').classList.add('hidden')" id="btnFullNameOk"></button>
+  </div>
+</div>
+<div class="overlay hidden" id="modalWarn" onclick="closeWarnModal()">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+    <div id="modalWarnIcon" style="font-size:48px;margin-bottom:12px"></div>
+    <h2 id="modalWarnTitle" style="font-size:20px;margin-bottom:10px"></h2>
+    <p id="modalWarnSub" style="font-size:15px;color:#555;margin-bottom:20px"></p>
+    <button class="btn btn-primary" onclick="closeWarnModal()">OK</button>
+  </div>
+</div>
+
+<script>
+// ── Countries list (sorted: priority first, then alpha) ──────────────────────
+const COUNTRIES = [
+  "United States of America","Spain","Portugal","UK","Ukraine","Russia",
+  "Afghanistan","South Africa","Albania","Germany","Andorra","Angola",
+  "Antigua and Barbuda","Netherlands Antilles","Saudi Arabia","Algeria",
+  "Argentina","Armenia","Australia","Austria","Bahamas","Bangladesh",
+  "Barbados","Bahrain","Belgium","Belize","Benin","Bermuda","Bolivia",
+  "Bosnia Herzegovina","Botswana","Brazil","Brunei Darussalam","Bulgaria",
+  "burkina faso","Burundi","Bhutan","Cape Verde","Cameroon","Cambodia",
+  "Canada","Chad","Czechoslovakia","Chile","China","Cyprus","ciskei",
+  "Colombia","Congo","Korea","Costa do Marfim","Costa Rica","Croatia",
+  "Cuba","Guinea Conakry","Denmark","Dominica","Egypt","El Salvador",
+  "United Arab Emirates","Ecuador","Eritrea","Slovenia","Estonia",
+  "Ethiopia","Philippines","Finland","France","Gabon","Gambia","Gana",
+  "Georgia","Gibraltar","Great Britain","Grenade","Greece","Guam",
+  "Guatemala","Guyana","Guinea conakry","Equatorial Guinea","Guinea Bissau",
+  "Haiti","Honduras","Hong Kong","Hungary","Cook islands","Fiji islands",
+  "Marshall Islands","Mauritius Islands","Solomon Islands","India",
+  "Indonesia","Iran","Iraq","Ireland","Iceland","Israel","Italy","Jamaica",
+  "Japan","Djibouti","Jordan","Yugoslavia(Serbia / Mt.)","Kiribati",
+  "Kosovo","Kuwait","Laos","Lesotho","latvia","Lebanon","Liberia","Libya",
+  "Liechtenstein","Lithuania","Luxembourg","Macao","macedonia","Madagascar",
+  "Malaysia","Malawi","Maldives","Mali","Malta","Northern Marianas(Islands)",
+  "Morocco","Mauritania","Mayotte","Mexico","Micronesia","Mozambique",
+  "monaco","Mongolia","Monserrate","Montenegro","Myanmar(Burma)","namibia",
+  "nauru","Nepal","Nicaragua","Niger","Nigeria","niue","Norway",
+  "New Caledonia","New Zealand","Oman","Netherlands","PALAU","Palestine",
+  "Panama","papua new guinea","Pakistan","Paraguay","Peru","Poland",
+  "Puerto Rico","Qatar","Kenya","Kyrgyzstan","Rep.Democ.Congo(Zaire)",
+  "Yemen Arab Republic","Azerbaijan Republic","Belarus Republic",
+  "Central African Republic","Czech Republic","Republic of Korea",
+  "Republic of Kazakhstan","Republic of South Sudan","Dominican Republic",
+  "slovak republic","Republic of Moldova","Romania","Rwanda","Turkmenistan",
+  "Samoa","Saint lucia","Satican City State","Saint Kitts and Nevis",
+  "San marino","Sao Tome Principe","Saint Vincent and the Gren","Senegal",
+  "Sierra Leone","Serbia","Seychelles","Singapore","Syria","Somalia",
+  "Sri Lanka","Swaziland","Sudan","Sweden","Switzerland","Suriname",
+  "Thailand","Taiwan","Tajikistan","Tanzania","East Timor","Togo","Tonga",
+  "Transkei","Trinidad and Tobago","Tunisia","Türkiye","tuvalu","Uganda",
+  "Union of the Comoros","Uruguay","uzbekistan","vanuatu","Venezuela",
+  "vietnam","Zambia","Zimbabwe"
+];
+
+// ── Translations ─────────────────────────────────────────────────────────────
+const T = {
+  en:{
+    pageTitle:"Casa Rosa Registration",
+    stepTitles:["Reservation","Guests","Arrival","Accommodations","Invoicing"],
+    prev:"Previous", next:"Next", submit:"Submit",
+    greeting:"Hi {name}. Thank you for your reservation.",
+    greetingNoName:"Thank you for your reservation.",
+    warnAlreadySubmitted:"This reservation has already been registered. You may proceed to submit a new registration.",
+    warnNotFound:"We could not find a reservation for this link. You may still fill out the form.",
+    lblApt:"Apartment Number",
+    lblGuests:"Number of Guests",
+    lblCheckIn:"Check-In Date",
+    lblCheckOut:"Check-Out Date",
+    lblResName:"Full Name used in Reservation",
+    guestInfo:"Short term rentals in Portugal are required to report guest information to the immigration authorities and verify identity at check-in.",
+    guestInfoPrivacy:"This information will be shared ONLY with the Portuguese Border Control authorities.",
+    dobFuture:"Date of birth cannot be in the future.",
+    dobTooOld:"Date of birth cannot be more than 110 years ago.",
+    primaryAdult:"The primary guest must be an adult (18+).",
+    guestN:"Guest #{n}",
+    lblName:"Full Name",
+    lblCitizenship:"Citizenship",
+    lblResidency:"Residency",
+    lblDob:"Date of Birth",
+    lblCountryBirth:"Country of Birth",
+    lblIdType:"ID Type",
+    lblIdNumber:"Passport / ID Number",
+    idTypes:["Passport","National Card","Other"],
+    sameForAll:"Same for all guests",
+    arrivalInfo:"This section is optional. Knowing your arrival time helps us welcome you personally.",
+    lblArrivalTime:"Estimated Arrival Time",
+    lblEarlyCheckIn:"Request early check-in (if possible)",
+    earlyCheckInNote:"We will let you know the day before if we have an early check-out so we can have the apartment ready for you.",
+    lblArrivalMethod:"Arrival Method",
+    trainNote:"Did you know there is a direct bus from Porto to Cascais? This can save you time over transferring trains in Lisbon.",
+    driveNote:"We recommend the Marechal Carmona Parking Lot for long term parking, or try street parking with coins.",
+    lblFlight:"Flight Number",
+    lblArrivalNotes:"Arrival Notes",
+    lblCrib:"Request portable crib setup",
+    lblSofa:"Request sofa bed setup",
+    lblSofa2:"Request sofa bed setup (2 people)",
+    lblOttoman:"Request ottoman bed setup",
+    lblOttoman1:"Request ottoman bed setup (1 person)",
+    lblSofa1:"Request sofa bed setup (1 person, 190 cm)",
+    lblFoldable:"Request foldable bed",
+    lblOtherRequests:"Other Requests",
+    invoiceInfo:"If you are not a Portuguese taxpayer and have no use for an invoice, you can skip this step and submit.",
+    lblNif:"Portuguese Tax ID (NIF)",
+    lblInvName:"Name on Invoice",
+    lblInvAddr:"Address for Invoice",
+    lblInvEmail:"Email for Invoice",
+    sending:"Sending, please wait...",
+    saved:"Saved. Enjoy Cascais!",
+    errorTitle:"Error",
+    errorSub:"Your information was not saved. Please try again.",
+    retry:"Retry",
+    validationMsg:"Please complete all required fields for all guests.",
+    fullNameRequired:"Full name required",
+    fullNameSub:"The Portuguese Government SIBA system requires a full name (first and last name).",
+    fullNameOk:"OK, I'll fix it",
+    guestCountWarning:"Your reservation is for {n} guest(s). Please proceed with registration, but inform your host of the change.",
+    dobInvalid:"Please enter a valid date of birth (DD/MM/YYYY).",
+  },
+  pt:{
+    pageTitle:"Registo Casa Rosa",
+    stepTitles:["Reserva","Hóspedes","Chegada","Acomodações","Faturação"],
+    prev:"Anterior", next:"Próximo", submit:"Enviar",
+    greeting:"Olá {name}. Obrigado pela sua reserva.",
+    greetingNoName:"Obrigado pela sua reserva.",
+    warnAlreadySubmitted:"Esta reserva já foi registada. Pode submeter um novo registo.",
+    warnNotFound:"Não encontrámos uma reserva para este link. Pode preencher o formulário na mesma.",
+    lblApt:"Número do Apartamento",
+    lblGuests:"Número de Hóspedes",
+    lblCheckIn:"Data de Check-In",
+    lblCheckOut:"Data de Check-Out",
+    lblResName:"Nome Completo da Reserva",
+    guestInfo:"Os arrendamentos de curta duração em Portugal são obrigados a reportar os dados dos hóspedes às autoridades de imigração e verificar a identidade no check-in.",
+    guestInfoPrivacy:"Esta informação será partilhada APENAS com as autoridades portuguesas de controlo de fronteiras.",
+    dobFuture:"A data de nascimento não pode ser no futuro.",
+    dobTooOld:"A data de nascimento não pode ser há mais de 110 anos.",
+    primaryAdult:"O hóspede principal deve ser adulto (18+).",
+    guestN:"Hóspede #{n}",
+    lblName:"Nome Completo",
+    lblCitizenship:"Nacionalidade",
+    lblResidency:"Residência",
+    lblDob:"Data de Nascimento",
+    lblCountryBirth:"País de Nascimento",
+    lblIdType:"Tipo de Documento",
+    lblIdNumber:"Número de Passaporte / BI",
+    idTypes:["Passaporte","Cartão de Cidadão","Outro"],
+    sameForAll:"Igual para todos os hóspedes",
+    arrivalInfo:"Esta secção é opcional. Saber a sua hora de chegada ajuda-nos a recebê-lo pessoalmente.",
+    lblArrivalTime:"Hora de Chegada Estimada",
+    lblEarlyCheckIn:"Pedir check-in antecipado (se possível)",
+    earlyCheckInNote:"Informaremos com antecedência se houver saída antecipada para preparar o apartamento.",
+    lblArrivalMethod:"Método de Chegada",
+    trainNote:"Sabia que existe autocarro direto do Porto para Cascais? Pode poupar tempo em relação à transferência de comboio em Lisboa.",
+    driveNote:"Recomendamos o Parque de Estacionamento Marechal Carmona para longa duração, ou estacionamento na rua com moedas.",
+    lblFlight:"Número do Voo",
+    lblArrivalNotes:"Notas de Chegada",
+    lblCrib:"Pedir berço portátil",
+    lblSofa:"Pedir cama de sofá",
+    lblSofa2:"Pedir cama de sofá (2 pessoas)",
+    lblOttoman:"Pedir cama otomana",
+    lblOttoman1:"Pedir cama otomana (1 pessoa)",
+    lblSofa1:"Pedir cama de sofá (1 pessoa, 190 cm)",
+    lblFoldable:"Pedir cama dobrável",
+    lblOtherRequests:"Outros Pedidos",
+    invoiceInfo:"Se não é contribuinte português e não necessita de fatura, pode saltar este passo e enviar.",
+    lblNif:"NIF (Número de Identificação Fiscal)",
+    lblInvName:"Nome na Fatura",
+    lblInvAddr:"Morada para Fatura",
+    lblInvEmail:"Email para Fatura",
+    sending:"A enviar, aguarde...",
+    saved:"Guardado. Boas férias em Cascais!",
+    errorTitle:"Erro",
+    errorSub:"Os seus dados não foram guardados. Por favor tente novamente.",
+    retry:"Tentar novamente",
+    validationMsg:"Por favor preencha todos os campos obrigatórios para todos os hóspedes.",
+    fullNameRequired:"Nome completo obrigatório",
+    fullNameSub:"O sistema SIBA do Governo Português requer nome completo (primeiro e último nome).",
+    fullNameOk:"OK, vou corrigir",
+    guestCountWarning:"A sua reserva é para {n} hóspede(s). Prossiga com o registo, mas informe o anfitrião da alteração.",
+    dobInvalid:"Por favor insira uma data de nascimento válida (DD/MM/AAAA).",
+  },
+  es:{
+    pageTitle:"Registro Casa Rosa",
+    stepTitles:["Reserva","Huéspedes","Llegada","Alojamiento","Facturación"],
+    prev:"Anterior", next:"Siguiente", submit:"Enviar",
+    greeting:"Hola {name}. Gracias por su reserva.",
+    greetingNoName:"Gracias por su reserva.",
+    warnAlreadySubmitted:"Esta reserva ya ha sido registrada. Puede enviar un nuevo registro.",
+    warnNotFound:"No encontramos una reserva para este enlace. Puede rellenar el formulario de todas formas.",
+    lblApt:"Número de Apartamento",
+    lblGuests:"Número de Huéspedes",
+    lblCheckIn:"Fecha de Entrada",
+    lblCheckOut:"Fecha de Salida",
+    lblResName:"Nombre Completo de la Reserva",
+    guestInfo:"Los alquileres de corta duración en Portugal deben informar los datos de los huéspedes a las autoridades de inmigración y verificar la identidad en el check-in.",
+    guestInfoPrivacy:"Esta información se compartirá ÚNICAMENTE con las autoridades de control fronterizo portuguesas.",
+    dobFuture:"La fecha de nacimiento no puede ser en el futuro.",
+    dobTooOld:"La fecha de nacimiento no puede ser hace más de 110 años.",
+    primaryAdult:"El huésped principal debe ser mayor de edad (18+).",
+    guestN:"Huésped #{n}",
+    lblName:"Nombre Completo",
+    lblCitizenship:"Ciudadanía",
+    lblResidency:"Residencia",
+    lblDob:"Fecha de Nacimiento",
+    lblCountryBirth:"País de Nacimiento",
+    lblIdType:"Tipo de Documento",
+    lblIdNumber:"Número de Pasaporte / DNI",
+    idTypes:["Pasaporte","DNI","Otro"],
+    sameForAll:"Igual para todos los huéspedes",
+    arrivalInfo:"Esta sección es opcional. Conocer su hora de llegada nos ayuda a recibirle personalmente.",
+    lblArrivalTime:"Hora de Llegada Estimada",
+    lblEarlyCheckIn:"Solicitar check-in anticipado (si es posible)",
+    earlyCheckInNote:"Le avisaremos el día anterior si hay una salida anticipada para preparar el apartamento.",
+    lblArrivalMethod:"Método de Llegada",
+    trainNote:"¿Sabía que hay autobús directo de Oporto a Cascais? Puede ahorrar tiempo frente al tren con transbordo en Lisboa.",
+    driveNote:"Recomendamos el Aparcamiento Marechal Carmona para larga duración, o aparcamiento en calle con monedas.",
+    lblFlight:"Número de Vuelo",
+    lblArrivalNotes:"Notas de Llegada",
+    lblCrib:"Solicitar cuna portátil",
+    lblSofa:"Solicitar cama sofá",
+    lblSofa2:"Solicitar cama sofá (2 personas)",
+    lblOttoman:"Solicitar cama otomana",
+    lblOttoman1:"Solicitar cama otomana (1 persona)",
+    lblSofa1:"Solicitar cama sofá (1 persona, 190 cm)",
+    lblFoldable:"Solicitar cama plegable",
+    lblOtherRequests:"Otras Solicitudes",
+    invoiceInfo:"Si no es contribuyente portugués y no necesita factura, puede saltarse este paso y enviar.",
+    lblNif:"NIF Portugués",
+    lblInvName:"Nombre en Factura",
+    lblInvAddr:"Dirección para Factura",
+    lblInvEmail:"Email para Factura",
+    sending:"Enviando, por favor espere...",
+    saved:"Guardado. ¡Disfrute Cascais!",
+    errorTitle:"Error",
+    errorSub:"Sus datos no fueron guardados. Por favor inténtelo de nuevo.",
+    retry:"Reintentar",
+    validationMsg:"Por favor complete todos los campos requeridos para todos los huéspedes.",
+    fullNameRequired:"Nombre completo requerido",
+    fullNameSub:"El sistema SIBA del Gobierno Portugués requiere nombre completo (nombre y apellido).",
+    fullNameOk:"OK, lo corregiré",
+    guestCountWarning:"Su reserva es para {n} huésped(es). Continúe con el registro, pero informe al anfitrión del cambio.",
+    dobInvalid:"Por favor ingrese una fecha de nacimiento válida (DD/MM/AAAA).",
+  },
+  fr:{
+    pageTitle:"Inscription Casa Rosa",
+    stepTitles:["Réservation","Invités","Arrivée","Hébergement","Facturation"],
+    prev:"Précédent", next:"Suivant", submit:"Envoyer",
+    greeting:"Bonjour {name}. Merci pour votre réservation.",
+    greetingNoName:"Merci pour votre réservation.",
+    warnAlreadySubmitted:"Cette réservation a déjà été enregistrée. Vous pouvez soumettre un nouvel enregistrement.",
+    warnNotFound:"Nous n'avons pas trouvé de réservation pour ce lien. Vous pouvez quand même remplir le formulaire.",
+    lblApt:"Numéro d'appartement",
+    lblGuests:"Nombre d'invités",
+    lblCheckIn:"Date d'arrivée",
+    lblCheckOut:"Date de départ",
+    lblResName:"Nom complet sur la réservation",
+    guestInfo:"Les locations courte durée au Portugal doivent signaler les informations des clients aux autorités d'immigration et vérifier l'identité à l'arrivée.",
+    guestInfoPrivacy:"Ces informations seront partagées UNIQUEMENT avec les autorités portugaises de contrôle aux frontières.",
+    dobFuture:"La date de naissance ne peut pas être dans le futur.",
+    dobTooOld:"La date de naissance ne peut pas dater de plus de 110 ans.",
+    primaryAdult:"Le client principal doit être majeur (18+).",
+    guestN:"Invité #{n}",
+    lblName:"Nom complet",
+    lblCitizenship:"Nationalité",
+    lblResidency:"Résidence",
+    lblDob:"Date de naissance",
+    lblCountryBirth:"Pays de naissance",
+    lblIdType:"Type de document",
+    lblIdNumber:"Numéro de passeport / pièce d'identité",
+    idTypes:["Passeport","Carte nationale","Autre"],
+    sameForAll:"Identique pour tous les invités",
+    arrivalInfo:"Cette section est facultative. Connaître votre heure d'arrivée nous aide à vous accueillir personnellement.",
+    lblArrivalTime:"Heure d'arrivée estimée",
+    lblEarlyCheckIn:"Demander un check-in anticipé (si possible)",
+    earlyCheckInNote:"Nous vous préviendrons la veille si un départ anticipé est possible pour préparer l'appartement.",
+    lblArrivalMethod:"Mode d'arrivée",
+    trainNote:"Saviez-vous qu'il existe un bus direct de Porto à Cascais ? Cela peut vous faire gagner du temps par rapport aux correspondances de train à Lisbonne.",
+    driveNote:"Nous recommandons le parking Marechal Carmona pour le long terme, ou le stationnement en rue avec pièces.",
+    lblFlight:"Numéro de vol",
+    lblArrivalNotes:"Notes d'arrivée",
+    lblCrib:"Demander un lit bébé portable",
+    lblSofa:"Demander un canapé-lit",
+    lblSofa2:"Demander un canapé-lit (2 personnes)",
+    lblOttoman:"Demander un lit ottoman",
+    lblOttoman1:"Demander un lit ottoman (1 personne)",
+    lblSofa1:"Demander un canapé-lit (1 personne, 190 cm)",
+    lblFoldable:"Demander un lit pliant",
+    lblOtherRequests:"Autres demandes",
+    invoiceInfo:"Si vous n'êtes pas contribuable portugais et n'avez pas besoin de facture, vous pouvez passer cette étape.",
+    lblNif:"NIF portugais",
+    lblInvName:"Nom sur la facture",
+    lblInvAddr:"Adresse pour la facture",
+    lblInvEmail:"Email pour la facture",
+    sending:"Envoi en cours, veuillez patienter...",
+    saved:"Enregistré. Profitez de Cascais !",
+    errorTitle:"Erreur",
+    errorSub:"Vos informations n'ont pas été enregistrées. Veuillez réessayer.",
+    retry:"Réessayer",
+    validationMsg:"Veuillez compléter tous les champs requis pour tous les invités.",
+    fullNameRequired:"Nom complet requis",
+    fullNameSub:"Le système SIBA du gouvernement portugais exige un nom complet (prénom et nom de famille).",
+    fullNameOk:"OK, je vais corriger",
+    guestCountWarning:"Votre réservation est pour {n} personne(s). Poursuivez l'enregistrement, mais informez votre hôte du changement.",
+    dobInvalid:"Veuillez saisir une date de naissance valide (JJ/MM/AAAA).",
+  },
+  de:{
+    pageTitle:"Casa Rosa Anmeldung",
+    stepTitles:["Reservierung","Gäste","Ankunft","Unterkunft","Rechnung"],
+    prev:"Zurück", next:"Weiter", submit:"Absenden",
+    greeting:"Hallo {name}. Vielen Dank für Ihre Reservierung.",
+    greetingNoName:"Vielen Dank für Ihre Reservierung.",
+    warnAlreadySubmitted:"Diese Reservierung wurde bereits registriert. Sie können eine neue Registrierung einreichen.",
+    warnNotFound:"Wir konnten keine Reservierung für diesen Link finden. Sie können das Formular trotzdem ausfüllen.",
+    lblApt:"Wohnungsnummer",
+    lblGuests:"Anzahl der Gäste",
+    lblCheckIn:"Check-in Datum",
+    lblCheckOut:"Check-out Datum",
+    lblResName:"Vollständiger Name der Reservierung",
+    guestInfo:"Kurzzeitmietungen in Portugal müssen Gästeinformationen den Einwanderungsbehörden melden und die Identität beim Check-in überprüfen.",
+    guestInfoPrivacy:"Diese Informationen werden NUR an die portugiesischen Grenzkontrollbehörden weitergegeben.",
+    dobFuture:"Das Geburtsdatum kann nicht in der Zukunft liegen.",
+    dobTooOld:"Das Geburtsdatum kann nicht mehr als 110 Jahre zurückliegen.",
+    primaryAdult:"Der Hauptgast muss volljährig sein (18+).",
+    guestN:"Gast #{n}",
+    lblName:"Vollständiger Name",
+    lblCitizenship:"Staatsangehörigkeit",
+    lblResidency:"Wohnsitz",
+    lblDob:"Geburtsdatum",
+    lblCountryBirth:"Geburtsland",
+    lblIdType:"Ausweistyp",
+    lblIdNumber:"Reisepass / Ausweisnummer",
+    idTypes:["Reisepass","Personalausweis","Sonstiges"],
+    sameForAll:"Gleich für alle Gäste",
+    arrivalInfo:"Dieser Abschnitt ist optional. Ihre Ankunftszeit zu kennen hilft uns, Sie persönlich zu empfangen.",
+    lblArrivalTime:"Geschätzte Ankunftszeit",
+    lblEarlyCheckIn:"Frühes Check-in anfragen (wenn möglich)",
+    earlyCheckInNote:"Wir informieren Sie am Vortag, wenn ein früher Check-out möglich ist, damit wir die Wohnung vorbereiten können.",
+    lblArrivalMethod:"Anreiseart",
+    trainNote:"Wussten Sie, dass es einen Direktbus von Porto nach Cascais gibt? Das kann Zeit sparen gegenüber dem Umsteigen in Lissabon.",
+    driveNote:"Wir empfehlen den Parkplatz Marechal Carmona für Langzeitparken oder Straßenparkplätze mit Münzen.",
+    lblFlight:"Flugnummer",
+    lblArrivalNotes:"Ankunftsnotizen",
+    lblCrib:"Tragbares Kinderbett anfragen",
+    lblSofa:"Schlafsofa anfragen",
+    lblSofa2:"Schlafsofa anfragen (2 Personen)",
+    lblOttoman:"Ottomanbett anfragen",
+    lblOttoman1:"Ottomanbett anfragen (1 Person)",
+    lblSofa1:"Schlafsofa anfragen (1 Person, 190 cm)",
+    lblFoldable:"Klappbett anfragen",
+    lblOtherRequests:"Weitere Wünsche",
+    invoiceInfo:"Wenn Sie kein portugiesischer Steuerzahler sind und keine Rechnung benötigen, können Sie diesen Schritt überspringen.",
+    lblNif:"Portugiesische Steuernummer (NIF)",
+    lblInvName:"Name auf der Rechnung",
+    lblInvAddr:"Adresse für die Rechnung",
+    lblInvEmail:"E-Mail für die Rechnung",
+    sending:"Wird gesendet, bitte warten...",
+    saved:"Gespeichert. Genießen Sie Cascais!",
+    errorTitle:"Fehler",
+    errorSub:"Ihre Daten wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
+    retry:"Erneut versuchen",
+    validationMsg:"Bitte füllen Sie alle Pflichtfelder für alle Gäste aus.",
+    fullNameRequired:"Vollständiger Name erforderlich",
+    fullNameSub:"Das portugiesische SIBA-System erfordert einen vollständigen Namen (Vor- und Nachname).",
+    fullNameOk:"OK, ich korrigiere es",
+    guestCountWarning:"Ihre Reservierung gilt für {n} Gast/Gäste. Fahren Sie mit der Registrierung fort, informieren Sie aber Ihren Gastgeber über die Änderung.",
+    dobInvalid:"Bitte geben Sie ein gültiges Geburtsdatum ein (TT.MM.JJJJ).",
+  },
+  it:{
+    pageTitle:"Registrazione Casa Rosa",
+    stepTitles:["Prenotazione","Ospiti","Arrivo","Sistemazione","Fatturazione"],
+    prev:"Precedente", next:"Avanti", submit:"Invia",
+    greeting:"Ciao {name}. Grazie per la sua prenotazione.",
+    greetingNoName:"Grazie per la sua prenotazione.",
+    warnAlreadySubmitted:"Questa prenotazione è già stata registrata. È possibile inviare una nuova registrazione.",
+    warnNotFound:"Non abbiamo trovato una prenotazione per questo link. Può comunque compilare il modulo.",
+    lblApt:"Numero Appartamento",
+    lblGuests:"Numero di Ospiti",
+    lblCheckIn:"Data di Check-In",
+    lblCheckOut:"Data di Check-Out",
+    lblResName:"Nome Completo sulla Prenotazione",
+    guestInfo:"Gli affitti brevi in Portogallo devono segnalare le informazioni degli ospiti alle autorità di immigrazione e verificare l'identità al check-in.",
+    guestInfoPrivacy:"Queste informazioni saranno condivise SOLO con le autorità di controllo delle frontiere portoghesi.",
+    dobFuture:"La data di nascita non può essere nel futuro.",
+    dobTooOld:"La data di nascita non può essere più di 110 anni fa.",
+    primaryAdult:"Il cliente principale deve essere maggiorenne (18+).",
+    guestN:"Ospite #{n}",
+    lblName:"Nome Completo",
+    lblCitizenship:"Cittadinanza",
+    lblResidency:"Residenza",
+    lblDob:"Data di Nascita",
+    lblCountryBirth:"Paese di Nascita",
+    lblIdType:"Tipo di Documento",
+    lblIdNumber:"Numero Passaporto / Carta d'Identità",
+    idTypes:["Passaporto","Carta d'Identità","Altro"],
+    sameForAll:"Uguale per tutti gli ospiti",
+    arrivalInfo:"Questa sezione è facoltativa. Conoscere l'orario di arrivo ci aiuta ad accogliervi personalmente.",
+    lblArrivalTime:"Orario di Arrivo Stimato",
+    lblEarlyCheckIn:"Richiedere check-in anticipato (se possibile)",
+    earlyCheckInNote:"Vi informeremo il giorno prima se c'è un check-out anticipato per preparare l'appartamento.",
+    lblArrivalMethod:"Modalità di Arrivo",
+    trainNote:"Lo sapeva che c'è un autobus diretto da Porto a Cascais? Può risparmiare tempo rispetto al cambio treno a Lisbona.",
+    driveNote:"Consigliamo il parcheggio Marechal Carmona per la lunga durata, o il parcheggio su strada con monete.",
+    lblFlight:"Numero del Volo",
+    lblArrivalNotes:"Note sull'Arrivo",
+    lblCrib:"Richiedere culla portatile",
+    lblSofa:"Richiedere letto a divano",
+    lblSofa2:"Richiedere letto a divano (2 persone)",
+    lblOttoman:"Richiedere letto ottomano",
+    lblOttoman1:"Richiedere letto ottomano (1 persona)",
+    lblSofa1:"Richiedere letto a divano (1 persona, 190 cm)",
+    lblFoldable:"Richiedere letto pieghevole",
+    lblOtherRequests:"Altre Richieste",
+    invoiceInfo:"Se non è un contribuente portoghese e non ha bisogno di una fattura, può saltare questo passaggio.",
+    lblNif:"Codice Fiscale Portoghese (NIF)",
+    lblInvName:"Nome in Fattura",
+    lblInvAddr:"Indirizzo per Fattura",
+    lblInvEmail:"Email per Fattura",
+    sending:"Invio in corso, attendere...",
+    saved:"Salvato. Godetevi Cascais!",
+    errorTitle:"Errore",
+    errorSub:"Le sue informazioni non sono state salvate. Riprovi.",
+    retry:"Riprova",
+    validationMsg:"Si prega di completare tutti i campi obbligatori per tutti gli ospiti.",
+    fullNameRequired:"Nome completo richiesto",
+    fullNameSub:"Il sistema SIBA del Governo Portoghese richiede il nome completo (nome e cognome).",
+    fullNameOk:"OK, lo correggerò",
+    guestCountWarning:"La sua prenotazione è per {n} ospite/i. Proceda con la registrazione, ma informi il suo host del cambiamento.",
+    dobInvalid:"Inserisca una data di nascita valida (GG/MM/AAAA).",
+  },
+  ru:{
+    pageTitle:"Регистрация Casa Rosa",
+    stepTitles:["Бронирование","Гости","Прибытие","Размещение","Счёт"],
+    prev:"Назад", next:"Далее", submit:"Отправить",
+    greeting:"Здравствуйте, {name}. Спасибо за бронирование.",
+    greetingNoName:"Спасибо за бронирование.",
+    warnAlreadySubmitted:"Эта бронь уже была зарегистрирована. Вы можете отправить новую регистрацию.",
+    warnNotFound:"По этой ссылке бронирование не найдено. Вы можете заполнить форму.",
+    lblApt:"Номер квартиры",
+    lblGuests:"Количество гостей",
+    lblCheckIn:"Дата заезда",
+    lblCheckOut:"Дата выезда",
+    lblResName:"Полное имя на бронировании",
+    guestInfo:"Краткосрочная аренда в Португалии обязана сообщать данные гостей иммиграционным органам и проверять удостоверение личности при заезде.",
+    guestInfoPrivacy:"Эта информация будет передана ТОЛЬКО органам пограничного контроля Португалии.",
+    dobFuture:"Дата рождения не может быть в будущем.",
+    dobTooOld:"Дата рождения не может быть более 110 лет назад.",
+    primaryAdult:"Основной гость должен быть совершеннолетним (18+).",
+    guestN:"Гость #{n}",
+    lblName:"Полное имя",
+    lblCitizenship:"Гражданство",
+    lblResidency:"Место проживания",
+    lblDob:"Дата рождения",
+    lblCountryBirth:"Страна рождения",
+    lblIdType:"Тип документа",
+    lblIdNumber:"Номер паспорта / удостоверения",
+    idTypes:["Паспорт","Национальный ID","Другое"],
+    sameForAll:"То же для всех гостей",
+    arrivalInfo:"Этот раздел необязателен. Знание времени прибытия помогает нам встретить вас лично.",
+    lblArrivalTime:"Ориентировочное время прибытия",
+    lblEarlyCheckIn:"Запросить ранний заезд (если возможно)",
+    earlyCheckInNote:"Мы сообщим заранее, если будет ранний выезд, чтобы подготовить апартаменты.",
+    lblArrivalMethod:"Способ прибытия",
+    trainNote:"Знаете ли вы, что из Порту есть прямой автобус до Кашкайша? Это экономит время по сравнению с пересадкой на поезд в Лиссабоне.",
+    driveNote:"Рекомендуем парковку Marechal Carmona для длительной стоянки или уличную парковку с монетами.",
+    lblFlight:"Номер рейса",
+    lblArrivalNotes:"Заметки о прибытии",
+    lblCrib:"Запросить переносную кроватку",
+    lblSofa:"Запросить раскладной диван",
+    lblSofa2:"Запросить раскладной диван (2 человека)",
+    lblOttoman:"Запросить оттоманскую кровать",
+    lblOttoman1:"Запросить оттоманскую кровать (1 человек)",
+    lblSofa1:"Запросить раскладной диван (1 человек, 190 см)",
+    lblFoldable:"Запросить складную кровать",
+    lblOtherRequests:"Другие пожелания",
+    invoiceInfo:"Если вы не являетесь португальским налогоплательщиком и не нуждаетесь в счёте-фактуре, можете пропустить этот шаг.",
+    lblNif:"Португальский ИНН (NIF)",
+    lblInvName:"Имя в счёте",
+    lblInvAddr:"Адрес для счёта",
+    lblInvEmail:"Email для счёта",
+    sending:"Отправка, подождите...",
+    saved:"Сохранено. Приятного отдыха в Кашкайше!",
+    errorTitle:"Ошибка",
+    errorSub:"Ваши данные не были сохранены. Пожалуйста, попробуйте снова.",
+    retry:"Повторить",
+    validationMsg:"Пожалуйста, заполните все обязательные поля для всех гостей.",
+    fullNameRequired:"Требуется полное имя",
+    fullNameSub:"Португальская система SIBA требует полное имя (имя и фамилия).",
+    fullNameOk:"ОК, исправлю",
+    guestCountWarning:"Ваша бронь рассчитана на {n} гост(я/ей). Продолжите регистрацию, но сообщите хозяину об изменении.",
+    dobInvalid:"Пожалуйста, введите корректную дату рождения (ДД/ММ/ГГГГ).",
+  },
+  ua:{
+    pageTitle:"Реєстрація Casa Rosa",
+    stepTitles:["Бронювання","Гості","Прибуття","Розміщення","Рахунок"],
+    prev:"Назад", next:"Далі", submit:"Надіслати",
+    greeting:"Вітаємо, {name}. Дякуємо за бронювання.",
+    greetingNoName:"Дякуємо за бронювання.",
+    warnAlreadySubmitted:"Це бронювання вже зареєстровано. Ви можете надіслати нову реєстрацію.",
+    warnNotFound:"За цим посиланням бронювання не знайдено. Ви можете заповнити форму.",
+    lblApt:"Номер квартири",
+    lblGuests:"Кількість гостей",
+    lblCheckIn:"Дата заїзду",
+    lblCheckOut:"Дата виїзду",
+    lblResName:"Повне ім'я на бронюванні",
+    guestInfo:"Короткострокова оренда в Португалії зобов'язана повідомляти дані гостей імміграційним органам та перевіряти посвідчення особи при заїзді.",
+    guestInfoPrivacy:"Ця інформація буде передана ВИКЛЮЧНО органам прикордонного контролю Португалії.",
+    dobFuture:"Дата народження не може бути в майбутньому.",
+    dobTooOld:"Дата народження не може бути більш ніж 110 років тому.",
+    primaryAdult:"Основний гість повинен бути повнолітнім (18+).",
+    guestN:"Гість #{n}",
+    lblName:"Повне ім'я",
+    lblCitizenship:"Громадянство",
+    lblResidency:"Місце проживання",
+    lblDob:"Дата народження",
+    lblCountryBirth:"Країна народження",
+    lblIdType:"Тип документа",
+    lblIdNumber:"Номер паспорта / посвідчення",
+    idTypes:["Паспорт","Національний ID","Інше"],
+    sameForAll:"Однаково для всіх гостей",
+    arrivalInfo:"Цей розділ необов'язковий. Знання часу прибуття допомагає нам особисто зустріти вас.",
+    lblArrivalTime:"Орієнтовний час прибуття",
+    lblEarlyCheckIn:"Запросити ранній заїзд (якщо можливо)",
+    earlyCheckInNote:"Ми повідомимо заздалегідь, якщо буде ранній виїзд, щоб підготувати апартаменти.",
+    lblArrivalMethod:"Спосіб прибуття",
+    trainNote:"Чи знаєте ви, що з Порту є прямий автобус до Кашкайша? Це економить час порівняно з пересадкою на поїзд у Лісабоні.",
+    driveNote:"Рекомендуємо парковку Marechal Carmona для тривалої стоянки або вуличну парковку з монетами.",
+    lblFlight:"Номер рейсу",
+    lblArrivalNotes:"Нотатки про прибуття",
+    lblCrib:"Запросити переносне ліжечко",
+    lblSofa:"Запросити розкладний диван",
+    lblSofa2:"Запросити розкладний диван (2 особи)",
+    lblOttoman:"Запросити оттоманське ліжко",
+    lblOttoman1:"Запросити оттоманське ліжко (1 особа)",
+    lblSofa1:"Запросити розкладний диван (1 особа, 190 см)",
+    lblFoldable:"Запросити розкладне ліжко",
+    lblOtherRequests:"Інші побажання",
+    invoiceInfo:"Якщо ви не є португальським платником податків і не потребуєте рахунку, можете пропустити цей крок.",
+    lblNif:"Португальський ІПН (NIF)",
+    lblInvName:"Ім'я в рахунку",
+    lblInvAddr:"Адреса для рахунку",
+    lblInvEmail:"Email для рахунку",
+    sending:"Надсилання, зачекайте...",
+    saved:"Збережено. Приємного відпочинку в Кашкайші!",
+    errorTitle:"Помилка",
+    errorSub:"Ваші дані не були збережені. Будь ласка, спробуйте знову.",
+    retry:"Повторити",
+    validationMsg:"Будь ласка, заповніть усі обов'язкові поля для всіх гостей.",
+    fullNameRequired:"Потрібне повне ім'я",
+    fullNameSub:"Португальська система SIBA вимагає повне ім'я (ім'я та прізвище).",
+    fullNameOk:"ОК, виправлю",
+    guestCountWarning:"Ваше бронювання розраховане на {n} гост(я/ей). Продовжіть реєстрацію, але повідомте господаря про зміни.",
+    dobInvalid:"Будь ласка, введіть коректну дату народження (ДД/ММ/РРРР).",
+  },
+  ar:{
+    pageTitle:"تسجيل كاسا روزا",
+    stepTitles:["الحجز","الضيوف","الوصول","الإقامة","الفاتورة"],
+    prev:"السابق", next:"التالي", submit:"إرسال",
+    greeting:"مرحباً {name}. شكراً لحجزكم.",
+    greetingNoName:"شكراً لحجزكم.",
+    warnAlreadySubmitted:"تم تسجيل هذا الحجز مسبقاً. يمكنك إرسال تسجيل جديد.",
+    warnNotFound:"لم نجد حجزاً لهذا الرابط. يمكنك ملء النموذج على أي حال.",
+    lblApt:"رقم الشقة",
+    lblGuests:"عدد الضيوف",
+    lblCheckIn:"تاريخ تسجيل الوصول",
+    lblCheckOut:"تاريخ تسجيل المغادرة",
+    lblResName:"الاسم الكامل في الحجز",
+    guestInfo:"يتعين على الإيجارات قصيرة المدى في البرتغال الإبلاغ عن معلومات الضيوف لسلطات الهجرة والتحقق من الهوية عند تسجيل الوصول.",
+    guestInfoPrivacy:"ستتم مشاركة هذه المعلومات فقط مع سلطات مراقبة الحدود البرتغالية.",
+    dobFuture:"لا يمكن أن يكون تاريخ الميلاد في المستقبل.",
+    dobTooOld:"لا يمكن أن يكون تاريخ الميلاد قبل أكثر من 110 سنوات.",
+    primaryAdult:"يجب أن يكون الضيف الرئيسي بالغاً (18+).",
+    guestN:"الضيف #{n}",
+    lblName:"الاسم الكامل",
+    lblCitizenship:"الجنسية",
+    lblResidency:"مكان الإقامة",
+    lblDob:"تاريخ الميلاد",
+    lblCountryBirth:"بلد الميلاد",
+    lblIdType:"نوع الوثيقة",
+    lblIdNumber:"رقم جواز السفر / الهوية",
+    idTypes:["جواز سفر","بطاقة وطنية","أخرى"],
+    sameForAll:"نفس البيانات لجميع الضيوف",
+    arrivalInfo:"هذا القسم اختياري. معرفة وقت وصولك يساعدنا على الترحيب بكم شخصياً.",
+    lblArrivalTime:"وقت الوصول المتوقع",
+    lblEarlyCheckIn:"طلب تسجيل وصول مبكر (إن أمكن)",
+    earlyCheckInNote:"سنخبرك في اليوم السابق إذا كان بالإمكان المغادرة المبكرة لتجهيز الشقة.",
+    lblArrivalMethod:"وسيلة الوصول",
+    trainNote:"هل تعلم أن هناك حافلة مباشرة من بورتو إلى كاشكايش؟ يمكن أن يوفر وقتاً مقارنة بتغيير القطار في لشبونة.",
+    driveNote:"نوصي بموقف سيارات Marechal Carmona للوقوف طويل الأمد، أو الشوارع بالعملات المعدنية.",
+    lblFlight:"رقم الرحلة",
+    lblArrivalNotes:"ملاحظات الوصول",
+    lblCrib:"طلب سرير أطفال محمول",
+    lblSofa:"طلب سرير أريكة",
+    lblSofa2:"طلب سرير أريكة (2 أشخاص)",
+    lblOttoman:"طلب سرير عثماني",
+    lblOttoman1:"طلب سرير عثماني (1 شخص)",
+    lblSofa1:"طلب سرير أريكة (1 شخص، 190 سم)",
+    lblFoldable:"طلب سرير قابل للطي",
+    lblOtherRequests:"طلبات أخرى",
+    invoiceInfo:"إذا لم تكن دافعاً للضرائب البرتغالية ولا تحتاج فاتورة، يمكنك تخطي هذه الخطوة.",
+    lblNif:"الرقم الضريبي البرتغالي (NIF)",
+    lblInvName:"الاسم في الفاتورة",
+    lblInvAddr:"العنوان للفاتورة",
+    lblInvEmail:"البريد الإلكتروني للفاتورة",
+    sending:"جارٍ الإرسال، يرجى الانتظار...",
+    saved:"تم الحفظ. استمتع بكاشكايش!",
+    errorTitle:"خطأ",
+    errorSub:"لم يتم حفظ بياناتك. يرجى المحاولة مرة أخرى.",
+    retry:"إعادة المحاولة",
+    validationMsg:"يرجى إكمال جميع الحقول المطلوبة لجميع الضيوف.",
+    fullNameRequired:"الاسم الكامل مطلوب",
+    fullNameSub:"يتطلب نظام SIBA الحكومي البرتغالي اسماً كاملاً (الاسم الأول واسم العائلة).",
+    fullNameOk:"حسناً، سأصحح ذلك",
+    guestCountWarning:"حجزك لـ {n} ضيف/ضيوف. تابع التسجيل، لكن أبلغ مضيفك بالتغيير.",
+    dobInvalid:"يرجى إدخال تاريخ ميلاد صحيح (يوم/شهر/سنة).",
+  },
+  zh:{
+    pageTitle:"Casa Rosa 登记",
+    stepTitles:["预订","房客","到达","住宿","发票"],
+    prev:"上一步", next:"下一步", submit:"提交",
+    greeting:"您好，{name}。感谢您的预订。",
+    greetingNoName:"感谢您的预订。",
+    warnAlreadySubmitted:"此预订已完成登记。您可以提交新的登记。",
+    warnNotFound:"未找到此链接对应的预订。您仍然可以填写表格。",
+    lblApt:"公寓编号",
+    lblGuests:"房客人数",
+    lblCheckIn:"入住日期",
+    lblCheckOut:"退房日期",
+    lblResName:"预订全名",
+    guestInfo:"葡萄牙短租需向移民当局报告房客信息，并在入住时验证身份。",
+    guestInfoPrivacy:"此信息将仅与葡萄牙边境管制当局共享。",
+    dobFuture:"出生日期不能在未来。",
+    dobTooOld:"出生日期不能超过110年前。",
+    primaryAdult:"主要房客必须是成年人（18岁以上）。",
+    guestN:"房客 #{n}",
+    lblName:"全名",
+    lblCitizenship:"国籍",
+    lblResidency:"居住地",
+    lblDob:"出生日期",
+    lblCountryBirth:"出生国",
+    lblIdType:"证件类型",
+    lblIdNumber:"护照/身份证号码",
+    idTypes:["护照","身份证","其他"],
+    sameForAll:"所有房客相同",
+    arrivalInfo:"此部分为选填。告知您的到达时间有助于我们亲自迎接您。",
+    lblArrivalTime:"预计到达时间",
+    lblEarlyCheckIn:"申请提前入住（如可能）",
+    earlyCheckInNote:"如果可以提前退房，我们将提前一天通知您，以便准备好公寓。",
+    lblArrivalMethod:"到达方式",
+    trainNote:"您知道从波尔图有直达卡斯卡伊什的巴士吗？这比在里斯本换乘火车更省时。",
+    driveNote:"推荐Marechal Carmona停车场长期停车，或投币路边停车。",
+    lblFlight:"航班号",
+    lblArrivalNotes:"到达备注",
+    lblCrib:"申请便携婴儿床",
+    lblSofa:"申请沙发床",
+    lblSofa2:"申请沙发床（2人）",
+    lblOttoman:"申请Ottoman床",
+    lblOttoman1:"申请Ottoman床（1人）",
+    lblSofa1:"申请沙发床（1人，190厘米）",
+    lblFoldable:"申请折叠床",
+    lblOtherRequests:"其他要求",
+    invoiceInfo:"如果您不是葡萄牙纳税人且不需要发票，可以跳过此步骤直接提交。",
+    lblNif:"葡萄牙税号（NIF）",
+    lblInvName:"发票抬头",
+    lblInvAddr:"发票地址",
+    lblInvEmail:"发票邮箱",
+    sending:"正在发送，请稍候...",
+    saved:"已保存。祝您在卡斯卡伊什愉快！",
+    errorTitle:"错误",
+    errorSub:"您的信息未保存。请重试。",
+    retry:"重试",
+    validationMsg:"请为所有房客填写所有必填字段。",
+    fullNameRequired:"需要填写全名",
+    fullNameSub:"葡萄牙政府SIBA系统需要全名（名字和姓氏）。",
+    fullNameOk:"好的，我来修改",
+    guestCountWarning:"您的预订为 {n} 位客人。请继续注册，但请告知您的房东此变更。",
+    dobInvalid:"请输入有效的出生日期（日/月/年）。",
+  },
+  he:{
+    pageTitle:"רישום Casa Rosa",
+    stepTitles:["הזמנה","אורחים","הגעה","לינה","חשבונית"],
+    prev:"הקודם", next:"הבא", submit:"שלח",
+    greeting:"שלום {name}. תודה על הזמנתך.",
+    greetingNoName:"תודה על הזמנתך.",
+    warnAlreadySubmitted:"הזמנה זו כבר נרשמה. ניתן לשלוח רישום חדש.",
+    warnNotFound:"לא מצאנו הזמנה עבור קישור זה. ניתן למלא את הטופס בכל מקרה.",
+    lblApt:"מספר דירה",
+    lblGuests:"מספר אורחים",
+    lblCheckIn:"תאריך הגעה",
+    lblCheckOut:"תאריך עזיבה",
+    lblResName:"שם מלא בהזמנה",
+    guestInfo:"השכרות לטווח קצר בפורטוגל חייבות לדווח על פרטי האורחים לרשויות ההגירה ולאמת זהות בעת הצ'ק-אין.",
+    guestInfoPrivacy:"מידע זה ישותף אך ורק עם רשויות בקרת הגבולות הפורטוגליות.",
+    dobFuture:"תאריך הלידה לא יכול להיות בעתיד.",
+    dobTooOld:"תאריך הלידה לא יכול להיות לפני יותר מ-110 שנים.",
+    primaryAdult:"האורח הראשי חייב להיות מבוגר (18+).",
+    guestN:"אורח #{n}",
+    lblName:"שם מלא",
+    lblCitizenship:"אזרחות",
+    lblResidency:"מקום מגורים",
+    lblDob:"תאריך לידה",
+    lblCountryBirth:"ארץ לידה",
+    lblIdType:"סוג מסמך",
+    lblIdNumber:"מספר דרכון / תעודת זהות",
+    idTypes:["דרכון","תעודת זהות","אחר"],
+    sameForAll:"זהה לכל האורחים",
+    arrivalInfo:"סעיף זה אינו חובה. ידיעת זמן הגעתך מסייעת לנו לקבל את פניך באופן אישי.",
+    lblArrivalTime:"זמן הגעה משוער",
+    lblEarlyCheckIn:"בקשת צ'ק-אין מוקדם (אם אפשרי)",
+    earlyCheckInNote:"נודיע לך יום מראש אם יש יציאה מוקדמת כדי להכין את הדירה.",
+    lblArrivalMethod:"אמצעי הגעה",
+    trainNote:"האם ידעת שיש אוטובוס ישיר מפורטו לקאשקאיש? זה יכול לחסוך זמן לעומת החלפת רכבות בליסבון.",
+    driveNote:"אנו ממליצים על חניון Marechal Carmona לחניה ארוכת טווח, או חניה ברחוב עם מטבעות.",
+    lblFlight:"מספר טיסה",
+    lblArrivalNotes:"הערות הגעה",
+    lblCrib:"בקשת עריסה ניידת",
+    lblSofa:"בקשת מיטת ספה",
+    lblSofa2:"בקשת מיטת ספה (2 אנשים)",
+    lblOttoman:"בקשת מיטת עות'מאן",
+    lblOttoman1:"בקשת מיטת עות'מאן (1 אדם)",
+    lblSofa1:"בקשת מיטת ספה (1 אדם, 190 ס\"מ)",
+    lblFoldable:"בקשת מיטה מתקפלת",
+    lblOtherRequests:"בקשות נוספות",
+    invoiceInfo:"אם אינך נישום פורטוגלי ואינך צריך חשבונית, ניתן לדלג על שלב זה.",
+    lblNif:"מספר זיהוי מס פורטוגלי (NIF)",
+    lblInvName:"שם בחשבונית",
+    lblInvAddr:"כתובת לחשבונית",
+    lblInvEmail:"אימייל לחשבונית",
+    sending:"שולח, אנא המתן...",
+    saved:"נשמר. תיהנה בקאשקאיש!",
+    errorTitle:"שגיאה",
+    errorSub:"המידע שלך לא נשמר. אנא נסה שנית.",
+    retry:"נסה שנית",
+    validationMsg:"אנא השלם את כל השדות הנדרשים עבור כל האורחים.",
+    fullNameRequired:"נדרש שם מלא",
+    fullNameSub:"מערכת SIBA של הממשלה הפורטוגלית דורשת שם מלא (שם פרטי ושם משפחה).",
+    fullNameOk:"בסדר, אתקן",
+    guestCountWarning:"ההזמנה שלך היא עבור {n} אורח/ים. המשך ברישום, אך הודע למארח שלך על השינוי.",
+    dobInvalid:"אנא הזן תאריך לידה תקין (יום/חודש/שנה).",
+  },
+  ja:{
+    pageTitle:"カーザ・ローザ 登録",
+    stepTitles:["予約","ゲスト","到着","宿泊設備","請求書"],
+    prev:"前へ", next:"次へ", submit:"送信",
+    greeting:"{name} 様、ご予約ありがとうございます。",
+    greetingNoName:"ご予約ありがとうございます。",
+    warnAlreadySubmitted:"この予約はすでに登録されています。新しい登録を送信できます。",
+    warnNotFound:"このリンクの予約が見つかりませんでした。それでもフォームにご記入いただけます。",
+    lblApt:"アパート番号",
+    lblGuests:"ゲスト人数",
+    lblCheckIn:"チェックイン日",
+    lblCheckOut:"チェックアウト日",
+    lblResName:"予約の氏名（フルネーム）",
+    guestInfo:"ポルトガルの短期賃貸は、ゲスト情報を移民当局に報告し、チェックイン時に身元確認を行う義務があります。",
+    guestInfoPrivacy:"この情報はポルトガル国境管理当局にのみ共有されます。",
+    dobFuture:"生年月日を未来の日付にすることはできません。",
+    dobTooOld:"生年月日は110年以上前にすることはできません。",
+    primaryAdult:"主要ゲストは成人（18歳以上）である必要があります。",
+    guestN:"ゲスト #{n}",
+    lblName:"氏名（フルネーム）",
+    lblCitizenship:"国籍",
+    lblResidency:"居住国",
+    lblDob:"生年月日",
+    lblCountryBirth:"出生国",
+    lblIdType:"証明書の種類",
+    lblIdNumber:"パスポート / IDカード番号",
+    idTypes:["パスポート","国民IDカード","その他"],
+    sameForAll:"全員同じ情報",
+    arrivalInfo:"このセクションは任意です。到着時間をお知らせいただくと、直接お出迎えできます。",
+    lblArrivalTime:"到着予定時刻",
+    lblEarlyCheckIn:"早期チェックインのリクエスト（可能な場合）",
+    earlyCheckInNote:"早いチェックアウトがある場合は前日にお知らせし、部屋の準備をいたします。",
+    lblArrivalMethod:"到着手段",
+    trainNote:"ポルトからカスカイスへの直行バスがあることをご存知ですか？リスボンでの乗り換えより時間を節約できます。",
+    driveNote:"長期駐車にはMarechal Carmona駐車場をお勧めします。コイン式路上駐車も可能です。",
+    lblFlight:"フライト番号",
+    lblArrivalNotes:"到着メモ",
+    lblCrib:"携帯用ベビーベッドのリクエスト",
+    lblSofa:"ソファベッドのリクエスト",
+    lblSofa2:"ソファベッドのリクエスト（2名）",
+    lblOttoman:"オットマンベッドのリクエスト",
+    lblOttoman1:"オットマンベッドのリクエスト（1名）",
+    lblSofa1:"ソファベッドのリクエスト（1名、190cm）",
+    lblFoldable:"折りたたみベッドのリクエスト",
+    lblOtherRequests:"その他のリクエスト",
+    invoiceInfo:"ポルトガルの納税者でなく、請求書が不要な場合は、このステップをスキップして送信できます。",
+    lblNif:"ポルトガル納税者番号（NIF）",
+    lblInvName:"請求書の氏名",
+    lblInvAddr:"請求書の住所",
+    lblInvEmail:"請求書のメールアドレス",
+    sending:"送信中、お待ちください...",
+    saved:"保存されました。カスカイスをお楽しみください！",
+    errorTitle:"エラー",
+    errorSub:"情報が保存されませんでした。もう一度お試しください。",
+    retry:"再試行",
+    validationMsg:"すべてのゲストの必須項目を入力してください。",
+    fullNameRequired:"フルネームが必要です",
+    fullNameSub:"ポルトガル政府のSIBAシステムにはフルネーム（名前と苗字）が必要です。",
+    fullNameOk:"わかりました、修正します",
+    guestCountWarning:"ご予約は {n} 名様分です。登録を続けてください。ただし、変更についてホストにご連絡ください。",
+    dobInvalid:"有効な生年月日を入力してください（日/月/年）。",
+  },
+};
+
+// ── State ────────────────────────────────────────────────────────────────────
+let lang = 'en';
+let step = 0;
+let reservationGuid = null;
+let prefillData = null;
+let isOrphan = false; // no guid or already submitted
+let guestCount = 1;
+let guests = []; // array of guest data objects
+
+// ── Language ─────────────────────────────────────────────────────────────────
+function t(key){ return T[lang][key] || T['en'][key] || key; }
+
+const LANG_META = {
+  en:{flag:'images/flags/gb.png',code:'EN'},
+  pt:{flag:'images/flags/pt.png',code:'PT'},
+  es:{flag:'images/flags/es.png',code:'ES'},
+  fr:{flag:'images/flags/fr.png',code:'FR'},
+  de:{flag:'images/flags/de.png',code:'DE'},
+  it:{flag:'images/flags/it.png',code:'IT'},
+  ru:{flag:'images/flags/ru.png',code:'RU'},
+  ua:{flag:'images/flags/ua.png',code:'UA'},
+  ar:{flag:'images/flags/sa.png',code:'AR'},
+  zh:{flag:'images/flags/cn.png',code:'ZH'},
+  he:{flag:'images/flags/il.png',code:'HE'},
+  ja:{flag:'images/flags/jp.png',code:'JA'},
+};
+
+function setLang(l){
+  lang = l;
+  const m = LANG_META[l];
+  document.getElementById('langFlag').src = m.flag;
+  document.getElementById('langCode').textContent = m.code;
+  document.querySelectorAll('.lang-opt').forEach(o=>o.classList.toggle('active', o.dataset.lang===l));
+  document.getElementById('langMenu').classList.remove('open');
+  const rtl = l==='ar'||l==='he';
+  document.body.classList.toggle('rtl', rtl);
+  applyTranslations();
+  renderGuestCards();
+}
+
+function toggleLangMenu(e){
+  e.stopPropagation();
+  document.getElementById('langMenu').classList.toggle('open');
+}
+
+document.addEventListener('click', ()=> document.getElementById('langMenu').classList.remove('open'));
+
+function applyTranslations(){
+  document.title = t('pageTitle');
+  document.getElementById('stepTitle').textContent = t('stepTitles')[step];
+  document.getElementById('stepNum').textContent = step + 1;
+  document.getElementById('btnPrev').textContent = t('prev');
+  document.getElementById('btnNext').textContent = step===4 ? t('submit') : t('next');
+  document.getElementById('btnPrev').style.visibility = step===0 ? 'hidden' : '';
+
+  // Step 0
+  document.getElementById('lblGuests').textContent = t('lblGuests');
+  document.getElementById('lblCheckIn').textContent = t('lblCheckIn');
+  document.getElementById('lblCheckOut').textContent = t('lblCheckOut');
+  document.getElementById('lblResName').textContent = t('lblResName');
+
+  // Step 1
+  document.getElementById('guestInfoText').textContent = t('guestInfo');
+  document.getElementById('guestInfoPrivacy').textContent = t('guestInfoPrivacy');
+
+  // Step 2
+  document.getElementById('arrivalInfoText').textContent = t('arrivalInfo');
+  document.getElementById('lblArrivalTime').textContent = t('lblArrivalTime');
+  document.getElementById('lblEarlyCheckIn').textContent = t('lblEarlyCheckIn');
+  document.getElementById('earlyCheckInNote').textContent = t('earlyCheckInNote');
+  document.getElementById('lblArrivalMethod').textContent = t('lblArrivalMethod');
+  document.getElementById('trainNote').textContent = t('trainNote');
+  document.getElementById('driveNote').textContent = t('driveNote');
+  document.getElementById('lblFlight').textContent = t('lblFlight');
+  document.getElementById('lblArrivalNotes').textContent = t('lblArrivalNotes');
+
+  // Step 3
+  document.getElementById('lblCrib').textContent = t('lblCrib');
+  document.getElementById('lblSofaApt2').textContent = t('lblSofa2');
+  document.getElementById('lblOttomanApt2').textContent = t('lblOttoman1');
+  document.getElementById('lblSofaApt3').textContent = t('lblSofa1');
+  document.getElementById('lblOtherRequests').textContent = t('lblOtherRequests');
+
+  // Step 4
+  document.getElementById('invoiceInfoText').textContent = t('invoiceInfo');
+  document.getElementById('lblNif').textContent = t('lblNif');
+  document.getElementById('lblInvName').textContent = t('lblInvName');
+  document.getElementById('lblInvAddr').textContent = t('lblInvAddr');
+  document.getElementById('lblInvEmail').textContent = t('lblInvEmail');
+
+  // Modals
+  document.getElementById('modalSendingText').textContent = t('sending');
+  document.getElementById('modalSavedText').textContent = t('saved');
+  document.getElementById('modalErrorText').textContent = t('errorTitle');
+  document.getElementById('modalErrorSub').textContent = t('errorSub');
+  document.getElementById('btnRetry').textContent = t('retry');
+  document.getElementById('btnFullNameOk').textContent = t('fullNameOk');
+  document.getElementById('modalFullNameTitle').textContent = t('fullNameRequired');
+  document.getElementById('modalFullNameSub').textContent = t('fullNameSub');
+
+  // Greeting
+  updateGreeting();
+
+  // Warn boxes
+  const warnSub = document.getElementById('warnAlreadySubmitted');
+  const warnNF = document.getElementById('warnNotFound');
+  if (!warnSub.classList.contains('hidden')) warnSub.textContent = t('warnAlreadySubmitted');
+  if (!warnNF.classList.contains('hidden')) warnNF.textContent = t('warnNotFound');
+}
+
+function updateGreeting(){
+  const name = document.getElementById('reservationName').value.trim();
+  const el = document.getElementById('greetingText');
+  if(name){
+    el.textContent = t('greeting').replace('{name}', name);
+  } else {
+    el.textContent = t('greetingNoName');
+  }
+}
+
+// ── Searchable select ────────────────────────────────────────────────────────
+function buildCountrySelect(id, value, onchange){
+  const wrap = document.createElement('div');
+  wrap.className = 'cs-wrap';
+
+  const trigger = document.createElement('input');
+  trigger.type = 'text';
+  trigger.className = 'cs-input';
+  trigger.readOnly = true;
+  trigger.value = value || '';
+  trigger.placeholder = '— select —';
+  trigger.dataset.csId = id;
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'cs-dropdown';
+
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'cs-search';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = '🔍';
+  searchWrap.appendChild(searchInput);
+
+  const list = document.createElement('div');
+  list.className = 'cs-list';
+
+  dropdown.appendChild(searchWrap);
+  dropdown.appendChild(list);
+  wrap.appendChild(trigger);
+  wrap.appendChild(dropdown);
+
+  let currentValue = value || '';
+
+  function renderList(filter){
+    list.innerHTML = '';
+    const lf = filter.toLowerCase();
+    const filtered = COUNTRIES.filter(c => c.toLowerCase().includes(lf));
+    if(!filtered.length){
+      const none = document.createElement('div');
+      none.className = 'cs-none';
+      none.textContent = '—';
+      list.appendChild(none);
+      return;
+    }
+    filtered.forEach(c=>{
+      const opt = document.createElement('div');
+      opt.className = 'cs-opt' + (c===currentValue?' selected':'');
+      opt.textContent = c;
+      opt.onclick = ()=>{
+        currentValue = c;
+        trigger.value = c;
+        dropdown.classList.remove('open');
+        if(onchange) onchange(c);
+      };
+      list.appendChild(opt);
+    });
+  }
+
+  trigger.onclick = (e)=>{
+    e.stopPropagation();
+    // close others
+    document.querySelectorAll('.cs-dropdown.open').forEach(d=>{
+      if(d!==dropdown) d.classList.remove('open');
+    });
+    dropdown.classList.toggle('open');
+    if(dropdown.classList.contains('open')){
+      searchInput.value='';
+      renderList('');
+      searchInput.focus();
+    }
+  };
+
+  searchInput.oninput = ()=> renderList(searchInput.value);
+  searchInput.onclick = e=> e.stopPropagation();
+
+  renderList('');
+
+  wrap.getValue = ()=> currentValue;
+  wrap.setValue = (v)=>{ currentValue=v; trigger.value=v||''; renderList(''); };
+
+  return wrap;
+}
+
+// close all dropdowns on outside click (country pickers handled here; lang menu handled in setLang/toggleLangMenu)
+document.addEventListener('click', ()=>{
+  document.querySelectorAll('.cs-dropdown.open').forEach(d=>d.classList.remove('open'));
+});
+
+// ── Guest cards ──────────────────────────────────────────────────────────────
+function ensureGuests(){
+  while(guests.length < guestCount) guests.push({name:'',nationality:'',residency:'',dob:'',countryOfBirth:'',typeOfId:'Passport',idNumber:''});
+  guests.length = guestCount;
+}
+
+// errorMap: { guestIndex: Set of field keys ('name','nationality','residency','dob','countryOfBirth','idNumber') }
+let _guestErrors = null;
+function renderGuestCards(errorMap){
+  if(errorMap !== undefined) _guestErrors = errorMap;
+  ensureGuests();
+  const container = document.getElementById('guestCards');
+  container.innerHTML = '';
+
+  guests.forEach((g, i)=>{
+    const card = document.createElement('div');
+    card.className = 'guest-card';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'guest-label';
+    lbl.textContent = t('guestN').replace('{n}', i+1);
+    card.appendChild(lbl);
+
+    // Name
+    const nameField = makeField(t('lblName'), ()=>{
+      const inp = document.createElement('input');
+      inp.type='text'; inp.value=g.name||'';
+      inp.oninput=()=>{ g.name=inp.value; inp.parentElement.classList.remove('field-error'); card.classList.remove('has-error'); };
+      return inp;
+    });
+    nameField.dataset.field='name';
+    card.appendChild(nameField);
+
+    // Citizenship
+    const natField = makeField(t('lblCitizenship'), ()=>{
+      const sel = buildCountrySelect('nat'+i, g.nationality, (v)=>{
+        g.nationality=v;
+        if(!g.residency) { g.residency=v; resWrap.setValue(v); }
+        if(v==='Ukraine') document.getElementById('headerImg').src='images/Ukraine.jpg';
+        checkPortugal(i, card);
+      });
+      return sel;
+    });
+    natField.dataset.field='nationality';
+    card.appendChild(natField);
+
+    if(i===0){
+      const btn = document.createElement('button');
+      btn.className='btn-sm'; btn.textContent=t('sameForAll');
+      btn.onclick=()=>{ guests.forEach((_,j)=>{ if(j>0){ guests[j].nationality=g.nationality; }}); renderGuestCards(); };
+      card.appendChild(btn);
+    }
+
+    // Residency
+    let resWrap;
+    const resField = makeField(t('lblResidency'), ()=>{
+      resWrap = buildCountrySelect('res'+i, g.residency, (v)=>{
+        g.residency=v;
+        checkPortugal(i, card);
+      });
+      return resWrap;
+    });
+    resField.dataset.field='residency';
+    card.appendChild(resField);
+
+    if(i===0){
+      const btn = document.createElement('button');
+      btn.className='btn-sm'; btn.textContent=t('sameForAll');
+      btn.onclick=()=>{ guests.forEach((_,j)=>{ if(j>0){ guests[j].residency=g.residency; }}); renderGuestCards(); };
+      card.appendChild(btn);
+    }
+
+    // DOB
+    const dobField = makeField(t('lblDob'), ()=>{
+      const inp = document.createElement('input');
+      inp.type='text'; inp.placeholder='DD/MM/YYYY'; inp.value=g.dob||'';
+      attachDateFormatter(inp, (v)=>{ g.dob=v; checkCribVisibility(); inp.parentElement.classList.remove('field-error'); card.classList.remove('has-error'); });
+      return inp;
+    });
+    dobField.dataset.field='dob';
+    card.appendChild(dobField);
+
+    // Country of birth
+    const cobField = makeField(t('lblCountryBirth'), ()=>{
+      const sel = buildCountrySelect('cob'+i, g.countryOfBirth, (v)=>{
+        g.countryOfBirth=v;
+        checkPortugal(i, card);
+      });
+      return sel;
+    });
+    cobField.dataset.field='countryOfBirth';
+    card.appendChild(cobField);
+
+    if(i===0){
+      const btn = document.createElement('button');
+      btn.className='btn-sm'; btn.textContent=t('sameForAll');
+      btn.onclick=()=>{ guests.forEach((_,j)=>{ if(j>0){ guests[j].countryOfBirth=g.countryOfBirth; }}); renderGuestCards(); };
+      card.appendChild(btn);
+    }
+
+    // ID type (conditional on Portugal)
+    const idTypeField = makeField(t('lblIdType'), ()=>{
+      const sel = document.createElement('select');
+      t('idTypes').forEach((opt,idx)=>{
+        const o = document.createElement('option');
+        o.value=['Passport','National Card','Other'][idx];
+        o.textContent=opt;
+        if(g.typeOfId===o.value) o.selected=true;
+        sel.appendChild(o);
+      });
+      sel.onchange=()=>{ g.typeOfId=sel.value; updateIdLabel(i, card); };
+      return sel;
+    });
+    idTypeField.id = `idTypeField${i}`;
+    card.appendChild(idTypeField);
+
+    if(i===0){
+      const btn = document.createElement('button');
+      btn.id=`idTypeSameBtn${i}`;
+      btn.className='btn-sm'; btn.textContent=t('sameForAll');
+      btn.onclick=()=>{ guests.forEach((_,j)=>{ if(j>0){ guests[j].typeOfId=g.typeOfId; }}); renderGuestCards(); };
+      card.appendChild(btn);
+    }
+
+    // ID number (built manually, wrap in a div so we can tag it)
+    const idNumWrap = document.createElement('div');
+    idNumWrap.className='field'; idNumWrap.dataset.field='idNumber';
+    const idNumLbl = document.createElement('label');
+    idNumLbl.id=`idNumLbl${i}`;
+    idNumLbl.style.fontWeight='600'; idNumLbl.style.marginTop='12px'; idNumLbl.style.display='block';
+    idNumLbl.textContent = (g.typeOfId && g.typeOfId!=='Passport') ? t('lblIdNumber').replace('Passport /',''): t('lblIdNumber');
+    idNumWrap.appendChild(idNumLbl);
+    const idNumInp = document.createElement('input');
+    idNumInp.type='text'; idNumInp.value=g.idNumber||'';
+    idNumInp.style.cssText='width:100%;padding:12px 14px;font-size:17px;border:2px solid #ccc;border-radius:8px;outline:none;';
+    idNumInp.oninput=()=>{ g.idNumber=idNumInp.value; idNumWrap.classList.remove('field-error'); card.classList.remove('has-error'); };
+    idNumWrap.appendChild(idNumInp);
+    card.appendChild(idNumWrap);
+
+    container.appendChild(card);
+
+    // Apply Portugal check
+    checkPortugal(i, card);
+
+    // Apply error highlighting if requested
+    const errs = _guestErrors && _guestErrors[i];
+    if(errs && errs.size > 0){
+      card.classList.add('has-error');
+      card.querySelectorAll('[data-field]').forEach(f=>{
+        if(errs.has(f.dataset.field)) f.classList.add('field-error');
+      });
+    }
+  });
+}
+
+function makeField(labelText, buildInput){
+  const div = document.createElement('div');
+  div.className='field';
+  const lbl = document.createElement('label');
+  lbl.textContent=labelText;
+  div.appendChild(lbl);
+  div.appendChild(buildInput());
+  return div;
+}
+
+function checkPortugal(i, card){
+  const g = guests[i];
+  const isPortugal = g.nationality==='Portugal'||g.residency==='Portugal'||g.countryOfBirth==='Portugal';
+  const idField = card.querySelector(`#idTypeField${i}`);
+  const idBtn = card.querySelector(`#idTypeSameBtn${i}`);
+  if(idField){ idField.style.display = isPortugal?'':'none'; }
+  if(idBtn){ idBtn.style.display = isPortugal&&i===0?'':'none'; }
+}
+
+function updateIdLabel(i, card){
+  const lbl = card.querySelector(`#idNumLbl${i}`);
+  if(lbl){ lbl.textContent = t('lblIdNumber'); }
+}
+
+// Parse DD/MM/YYYY → Date (returns null if invalid)
+function parseDMY(s){
+  if(!s) return null;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  const d = new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Convert YYYY-MM-DD (from API) to DD/MM/YYYY (for display)
+function isoToDMY(s){
+  if(!s) return '';
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+}
+
+// Convert DD/MM/YYYY (from form) to YYYY-MM-DD (for API)
+function dmyToIso(s){
+  if(!s) return '';
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : s;
+}
+
+// Auto-format a text input as DD/MM/YYYY while typing
+function attachDateFormatter(inp, onChange){
+  inp.addEventListener('input', function(){
+    const pos  = inp.selectionStart;
+    const raw  = inp.value.replace(/\D/g,'').slice(0,8);
+    let out = raw;
+    if(raw.length > 4) out = raw.slice(0,2)+'/'+raw.slice(2,4)+'/'+raw.slice(4);
+    else if(raw.length > 2) out = raw.slice(0,2)+'/'+raw.slice(2);
+    if(inp.value !== out){
+      inp.value = out;
+      // restore cursor accounting for inserted slashes
+      const slashesBeforeCursor = (out.slice(0, pos).match(/\//g)||[]).length
+                                - (inp.value.replace(/\D/g,'').slice(0,pos).match(/\//g)||[]).length;
+      inp.setSelectionRange(pos + slashesBeforeCursor, pos + slashesBeforeCursor);
+    }
+    if(onChange) onChange(out);
+  });
+}
+
+function checkCribVisibility(){
+  const hasInfant = guests.some(g=>{
+    if(!g.dob) return false;
+    const d = parseDMY(g.dob);
+    if(!d) return false;
+    const days = (Date.now() - d.getTime())/(1000*60*60*24);
+    return days < 460;
+  });
+  document.getElementById('cribRow').classList.toggle('hidden', !hasInfant);
+}
+
+// ── Step navigation ──────────────────────────────────────────────────────────
+function applyPrefillStep0(){
+  if(!prefillData) return;
+  if(prefillData.checkInDate){ document.getElementById('checkInDate').value = isoToDMY(prefillData.checkInDate); document.getElementById('checkInDate').readOnly = true; }
+  if(prefillData.checkOutDate){ document.getElementById('checkOutDate').value = isoToDMY(prefillData.checkOutDate); document.getElementById('checkOutDate').readOnly = true; }
+  if(prefillData.reservationName){ document.getElementById('reservationName').value = prefillData.reservationName; document.getElementById('reservationName').readOnly = true; }
+  document.getElementById('guestCount').value = guestCount;
+}
+
+function showStep(n){
+  for(let i=0;i<=4;i++) document.getElementById('step'+i).classList.toggle('hidden', i!==n);
+  step=n;
+  applyTranslations();
+  if(n===0) applyPrefillStep0();
+  if(n===1){
+    renderGuestCards();
+    const errEl = document.getElementById('step1Error');
+    if(_guestErrors){ errEl.textContent = t('validationMsg'); errEl.classList.add('visible'); }
+    else errEl.classList.remove('visible');
+  }
+  if(n===3){ checkCribVisibility(); updateSofaSection(); }
+  window.scrollTo(0,0);
+}
+
+function updateSofaSection(){
+  const apt = prefillData ? prefillData.apartmentNumber : 0;
+  document.getElementById('sofaRowApt2').classList.toggle('hidden', apt !== 2);
+  document.getElementById('sofaRowApt3').classList.toggle('hidden', apt !== 3);
+}
+
+function updateSofaImage(key){
+  if(key==='apt2sofa'){
+    const checked = document.getElementById('sofaSetupApt2').checked;
+    document.getElementById('imgApt2Sofa').src = checked ? 'images/3_sofa_open.jpg' : 'images/2_sofa_closed.jpg';
+  } else if(key==='apt2ottoman'){
+    const checked = document.getElementById('ottomanSetupApt2').checked;
+    document.getElementById('imgApt2Ottoman').src = checked ? 'images/3_ottoman_open.jpg' : 'images/2_ottoman_closed.jpg';
+  } else if(key==='apt3sofa'){
+    const checked = document.getElementById('sofaSetupApt3').checked;
+    document.getElementById('imgApt3Sofa').src = checked ? 'images/3_open.jpg' : 'images/3_closed.jpg';
+  }
+}
+
+function prevStep(){ if(step>0) showStep(step-1); }
+
+function nextStep(){
+  if(step===0){
+    guestCount = parseInt(document.getElementById('guestCount').value)||1;
+    ensureGuests();
+    if(prefillData && !isOrphan){
+      const expected = prefillData.guestCount||1;
+      if(guestCount !== expected){
+        alert(t('guestCountWarning').replace('{n}', expected));
+      }
+    }
+  }
+  if(step===1){
+    // Full-name check (must have at least first + last name)
+    for(let gi=0; gi<guests.length; gi++){
+      const name = (guests[gi].name||'').trim();
+      if(name && name.indexOf(' ') === -1){
+        document.getElementById('modalFullNameGuest').textContent = '"' + name + '"';
+        document.getElementById('modalFullName').classList.remove('hidden');
+        return;
+      }
+    }
+
+    const errorMap = {};
+    let hasErrors = false;
+    for(let gi=0; gi<guests.length; gi++){
+      const g = guests[gi];
+      const missing = new Set();
+      if(!g.name)          missing.add('name');
+      if(!g.nationality)   missing.add('nationality');
+      if(!g.residency)     missing.add('residency');
+      if(!g.countryOfBirth) missing.add('countryOfBirth');
+      if(!g.idNumber)      missing.add('idNumber');
+      // DOB: missing or invalid
+      if(!g.dob){
+        missing.add('dob');
+      } else {
+        const bd = parseDMY(g.dob);
+        if(!bd){
+          missing.add('dob');
+        } else {
+          const ageYears = (Date.now() - bd.getTime()) / (1000*60*60*24*365.25);
+          if(ageYears < 0){
+            showWarnModal('📅', t('dobFuture'), g.name ? '"'+g.name+'"' : '');
+            return;
+          } else if(ageYears > 110){
+            showWarnModal('📅', t('dobTooOld'), g.name ? '"'+g.name+'"' : '');
+            return;
+          } else if(gi === 0 && ageYears < 18){
+            showWarnModal('🔞', t('primaryAdult'), g.name ? '"'+g.name+'"' : '');
+            return;
+          }
+        }
+      }
+      if(missing.size > 0){ errorMap[gi] = missing; hasErrors = true; }
+    }
+    if(hasErrors){
+      _guestErrors = errorMap;
+      renderGuestCards(errorMap);
+      const errEl = document.getElementById('step1Error');
+      errEl.textContent = t('validationMsg');
+      errEl.classList.add('visible');
+      // scroll to first error card
+      const firstErr = document.querySelector('.guest-card.has-error');
+      if(firstErr) firstErr.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    // clear errors on success
+    _guestErrors = null;
+    document.getElementById('step1Error').classList.remove('visible');
+  }
+  if(step<4){ showStep(step+1); }
+  else { submitForm(); }
+}
+
+// ── Step 2 dynamic ───────────────────────────────────────────────────────────
+function onArrivalTimeChange(){
+  const v = document.getElementById('arrivalTime').value;
+  const earlyTimes = ['Before 11AM','11AM-12PM','12PM-1PM','1PM-2PM','2PM-3PM'];
+  document.getElementById('earlyCheckInRow').classList.toggle('hidden', !earlyTimes.includes(v));
+}
+
+function onArrivalMethodChange(){
+  const v = document.getElementById('arrivalMethod').value;
+  document.getElementById('flightRow').classList.toggle('hidden', !v.startsWith('Flight'));
+  document.getElementById('trainNote').classList.toggle('hidden', v!=='Train');
+  document.getElementById('driveNote').classList.toggle('hidden', v!=="I'll drive");
+}
+
+// ── Step 0 dynamic ───────────────────────────────────────────────────────────
+function onGuestCountChange(){
+  guestCount = parseInt(document.getElementById('guestCount').value)||1;
+  ensureGuests();
+}
+
+function onResNameInput(){
+  updateGreeting();
+  // auto-fill first guest name if empty
+  if(guests[0] && !guests[0]._nameManuallySet){
+    guests[0].name = document.getElementById('reservationName').value;
+  }
+}
+
+// ── Load prefill from API ────────────────────────────────────────────────────
+async function init(){
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('guid') || params.get('id');
+
+  if(id){
+    reservationGuid = id;
+    try{
+      const r = await fetch('/api/public/reservation/'+id);
+      if(r.ok){
+        prefillData = await r.json();
+        if(prefillData.alreadySubmitted){
+          document.getElementById('warnAlreadySubmitted').textContent = t('warnAlreadySubmitted');
+          document.getElementById('warnAlreadySubmitted').classList.remove('hidden');
+          isOrphan = true;
+        }
+        // Prefill
+        guestCount = prefillData.guestCount||1;
+        document.getElementById('guestCount').value = guestCount;
+        if(prefillData.checkInDate){ document.getElementById('checkInDate').value = isoToDMY(prefillData.checkInDate); document.getElementById('checkInDate').readOnly = true; }
+        if(prefillData.checkOutDate){ document.getElementById('checkOutDate').value = isoToDMY(prefillData.checkOutDate); document.getElementById('checkOutDate').readOnly = true; }
+        if(prefillData.reservationName){ document.getElementById('reservationName').value = prefillData.reservationName; document.getElementById('reservationName').readOnly = true; }
+        updateGreeting();
+
+        if(prefillData.arrivalMethod) document.getElementById('arrivalMethod').value = prefillData.arrivalMethod;
+        if(prefillData.arrivalTime) document.getElementById('arrivalTime').value = prefillData.arrivalTime;
+        if(prefillData.flightNumber) document.getElementById('flightNumber').value = prefillData.flightNumber;
+        if(prefillData.arrivalNotes) document.getElementById('arrivalNotes').value = prefillData.arrivalNotes;
+        if(prefillData.earlyCheckIn) document.getElementById('earlyCheckIn').checked = prefillData.earlyCheckIn;
+        if(prefillData.cribSetup) document.getElementById('cribSetup').checked = prefillData.cribSetup;
+        if(prefillData.sofaSetup){
+          document.getElementById('sofaSetupApt2').checked = prefillData.sofaSetup;
+          document.getElementById('sofaSetupApt3').checked = prefillData.sofaSetup;
+          updateSofaImage('apt2sofa'); updateSofaImage('apt3sofa');
+        }
+        if(prefillData.foldableBed){
+          document.getElementById('ottomanSetupApt2').checked = prefillData.foldableBed;
+          updateSofaImage('apt2ottoman');
+        }
+        if(prefillData.otherRequests) document.getElementById('otherRequests').value = prefillData.otherRequests;
+        if(prefillData.invoiceNif) document.getElementById('invoiceNif').value = prefillData.invoiceNif;
+        if(prefillData.invoiceName) document.getElementById('invoiceName').value = prefillData.invoiceName;
+        if(prefillData.invoiceAddress) document.getElementById('invoiceAddress').value = prefillData.invoiceAddress;
+        if(prefillData.invoiceEmail) document.getElementById('invoiceEmail').value = prefillData.invoiceEmail;
+
+        // Prefill guests
+        ensureGuests();
+        if(prefillData.guests && prefillData.guests.length){
+          prefillData.guests.forEach((pg,i)=>{
+            if(i<guests.length){
+              guests[i].name = pg.name||'';
+              guests[i].nationality = pg.nationality||'';
+              guests[i].residency = pg.residency||'';
+              guests[i].dob = isoToDMY(pg.birthDate||'');
+              guests[i].countryOfBirth = pg.countryOfBirth||'';
+              guests[i].typeOfId = pg.typeOfId||'Passport';
+              guests[i].idNumber = pg.idNumber||'';
+            }
+          });
+        } else {
+          // pre-fill first guest name from reservation name
+          if(prefillData.reservationName && !guests[0].name)
+            guests[0].name = prefillData.reservationName;
+        }
+
+        onArrivalTimeChange();
+        onArrivalMethodChange();
+      } else {
+        document.getElementById('warnNotFound').textContent = t('warnNotFound');
+        document.getElementById('warnNotFound').classList.remove('hidden');
+        isOrphan = true;
+      }
+    } catch(e){
+      document.getElementById('warnNotFound').textContent = t('warnNotFound');
+      document.getElementById('warnNotFound').classList.remove('hidden');
+      isOrphan = true;
+    }
+  } else {
+    // No GUID — orphan mode
+    isOrphan = true;
+    updateGreeting();
+  }
+
+  applyTranslations();
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitForm(){
+  const apartmentNumber = isOrphan ? 0 : (prefillData ? prefillData.apartmentNumber : 0);
+  const payload = {
+    reservationGuid: (isOrphan && !prefillData) ? null : reservationGuid,
+    reservationName: document.getElementById('reservationName').value,
+    guestCount: parseInt(document.getElementById('guestCount').value)||1,
+    checkInDate: dmyToIso(document.getElementById('checkInDate').value),
+    checkOutDate: dmyToIso(document.getElementById('checkOutDate').value),
+    apartmentNumber: apartmentNumber,
+    arrivalMethod: document.getElementById('arrivalMethod').value,
+    arrivalTime: document.getElementById('arrivalTime').value,
+    flightNumber: document.getElementById('flightNumber').value,
+    arrivalNotes: document.getElementById('arrivalNotes').value,
+    earlyCheckIn: document.getElementById('earlyCheckIn').checked,
+    cribSetup: document.getElementById('cribSetup').checked,
+    sofaSetup: apartmentNumber===2 ? document.getElementById('sofaSetupApt2').checked : (apartmentNumber===3 ? document.getElementById('sofaSetupApt3').checked : false),
+    foldableBed: apartmentNumber===2 ? document.getElementById('ottomanSetupApt2').checked : false,
+    otherRequests: document.getElementById('otherRequests').value,
+    invoiceNif: document.getElementById('invoiceNif').value,
+    invoiceName: document.getElementById('invoiceName').value,
+    invoiceAddress: document.getElementById('invoiceAddress').value,
+    invoiceEmail: document.getElementById('invoiceEmail').value,
+    guests: guests.map(g=>({
+      name: g.name,
+      nationality: g.nationality,
+      birthDate: dmyToIso(g.dob),
+      residency: g.residency,
+      countryOfBirth: g.countryOfBirth,
+      typeOfId: g.typeOfId||'Passport',
+      idNumber: g.idNumber
+    }))
+  };
+
+  document.getElementById('modalSending').classList.remove('hidden');
+
+  try{
+    const r = await fetch('/api/public/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    document.getElementById('modalSending').classList.add('hidden');
+    if(r.ok){
+      document.getElementById('modalSaved').classList.remove('hidden');
+      setTimeout(()=>{ window.location.href='https://www.casarosahouse.com'; }, 2500);
+    } else {
+      document.getElementById('modalError').classList.remove('hidden');
+    }
+  } catch(e){
+    document.getElementById('modalSending').classList.add('hidden');
+    document.getElementById('modalError').classList.remove('hidden');
+  }
+}
+
+function closeErrorModal(){
+  document.getElementById('modalError').classList.add('hidden');
+}
+
+function showWarnModal(icon, title, sub){
+  document.getElementById('modalWarnIcon').textContent = icon;
+  document.getElementById('modalWarnTitle').textContent = title;
+  document.getElementById('modalWarnSub').textContent = sub;
+  document.getElementById('modalWarn').classList.remove('hidden');
+}
+
+function closeWarnModal(){
+  document.getElementById('modalWarn').classList.add('hidden');
+}
+
+// ── Browser language detection ───────────────────────────────────────────────
+function detectLang(){
+  const nav = (navigator.language||'en').toLowerCase().slice(0,2);
+  const map = {en:'en',pt:'pt',es:'es',fr:'fr',de:'de',it:'it',ru:'ru',uk:'ua',ar:'ar',zh:'zh',he:'he',ja:'ja'};
+  return map[nav]||'en';
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+setLang(detectLang());
+showStep(0);
+attachDateFormatter(document.getElementById('checkInDate'));
+attachDateFormatter(document.getElementById('checkOutDate'));
+init();
+</script>
+</body>
+</html>

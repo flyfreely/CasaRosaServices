@@ -57,14 +57,19 @@ record ManageRegistrationDetail(
     string? InvoiceNif,
     string? InvoiceName,
     string? InvoiceAddr,
-    string? InvoiceEmail);
+    string? InvoiceEmail,
+    string? Sef = null);
 
 record ManageGuestRow(
     int       Id,
     int       RegistrationId,
     string?   Name,
     string?   Nationality,
-    DateTime? BirthDate);
+    DateTime? BirthDate,
+    string?   Residency = null,
+    string?   CountryOfBirth = null,
+    string?   TypeOfId = null,
+    string?   IdNumber = null);
 
 // ── Write request models ──────────────────────────────────────────────────────
 record ReservationCreateRequest(
@@ -111,9 +116,17 @@ record RegistrationWriteRequest(
     string? InvoiceNif,
     string? InvoiceName,
     string? InvoiceAddr,
-    string? InvoiceEmail);
+    string? InvoiceEmail,
+    string? Sef = null);
 
-record GuestWriteRequest(string? Name, string? Nationality, string? BirthDate);
+record GuestWriteRequest(
+    string? Name,
+    string? Nationality,
+    string? BirthDate,
+    string? Residency = null,
+    string? CountryOfBirth = null,
+    string? TypeOfId = null,
+    string? IdNumber = null);
 record ReminderUpdateRequest(string Message, DateTime ScheduledAt);
 
 record CalNote(
@@ -123,6 +136,7 @@ record CalNote(
     bool    Crib,
     bool    EarlyCheckIn,
     bool    SofaBed,
+    bool    OttomanBed,
     bool    LeavingBags);
 
 record CalNoteRequest(
@@ -131,6 +145,7 @@ record CalNoteRequest(
     bool    Crib,
     bool    EarlyCheckIn,
     bool    SofaBed,
+    bool    OttomanBed,
     bool    LeavingBags);
 
 record MonthlyStatsRow(string Month, int ApartmentNumber, int Nights, decimal Payout);

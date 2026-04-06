@@ -1145,7 +1145,7 @@ string FormatReservationsForContext(List<BriefingReservation> reservations)
             if (r.Registration.EarlyCheckIn) reqs.Add("early check-in");
             if (r.Registration.CribSetup)    reqs.Add("crib");
             if (r.Registration.SofaSetup)    reqs.Add("sofa bed");
-            if (r.Registration.FoldableBed)  reqs.Add("foldable bed");
+            if (r.Registration.FoldableBed)  reqs.Add("ottoman bed");
             if (!string.IsNullOrWhiteSpace(r.Registration.OtherRequests))
                 reqs.Add(r.Registration.OtherRequests.Trim());
             if (reqs.Count > 0) sb.Append($" | Requests: {string.Join(", ", reqs)}");
