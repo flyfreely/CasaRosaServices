@@ -1191,7 +1191,7 @@ string CalendarPage(DateOnly sel, DateOnly firstOfMonth, DateOnly calStart, Date
             .occ-pct { font-size:.78rem; color:#666; min-width:60px; text-align:right; }
             @media(max-width:700px) {
               .apt-cols { grid-template-columns:1fr; }
-              .apt-img { height:120px; }
+              .apt-img-wrap { display:none; }
               .apt-broom { font-size:1.2rem; bottom:4px; right:6px; }
               .cbar-row { height:4px; }
               .cbar-half { height:4px; }
@@ -1642,7 +1642,7 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         if (earlyCI) sb.Append($"<span class='cal-tag'>⚡ {T.Get(lang, "Early CI")}</span>");
         if (crib)    sb.Append($"<span class='cal-tag'>👶 {T.Get(lang, "Crib")}</span>");
         if (sofa)    sb.Append($"<span class='cal-tag'>🛋️ {T.Get(lang, "Sofa")}</span>");
-        if (ottoman) sb.Append($"<span class='cal-tag'>🛏️ {T.Get(lang, "Ottoman")}</span>");
+        if (ottoman) sb.Append($"<span class='cal-tag'><svg width='16' height='14' viewBox='0 0 16 14' style='vertical-align:middle'><rect x='1' y='4' width='14' height='6' rx='3' fill='#8B6F47'/><rect x='2' y='2' width='12' height='4' rx='2' fill='#A0845C'/><rect x='3' y='10' width='2' height='2' rx='.5' fill='#6B5535'/><rect x='11' y='10' width='2' height='2' rx='.5' fill='#6B5535'/></svg> {T.Get(lang, "Ottoman")}</span>");
         if (bags)    sb.Append($"<span class='cal-tag'>🧳 {T.Get(lang, "Bags")}</span>");
         return sb.Length > 0 ? $"<div class='cal-tags'>{sb}</div>" : "";
     }
