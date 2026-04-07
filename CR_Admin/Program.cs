@@ -1642,7 +1642,7 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         if (earlyCI) sb.Append($"<span class='cal-tag'>⚡ {T.Get(lang, "Early CI")}</span>");
         if (crib)    sb.Append($"<span class='cal-tag'>👶 {T.Get(lang, "Crib")}</span>");
         if (sofa)    sb.Append($"<span class='cal-tag'>🛋️ {T.Get(lang, "Sofa")}</span>");
-        if (ottoman) sb.Append($"<span class='cal-tag'><svg width='16' height='14' viewBox='0 0 16 14' style='vertical-align:middle'><rect x='1' y='4' width='14' height='6' rx='3' fill='#8B6F47'/><rect x='2' y='2' width='12' height='4' rx='2' fill='#A0845C'/><rect x='3' y='10' width='2' height='2' rx='.5' fill='#6B5535'/><rect x='11' y='10' width='2' height='2' rx='.5' fill='#6B5535'/></svg> {T.Get(lang, "Ottoman")}</span>");
+        if (ottoman) sb.Append($"<span class='cal-tag'><svg width='20' height='14' viewBox='0 0 20 14' style='vertical-align:middle'><rect x='1' y='4' width='18' height='4' rx='1' fill='#8B6F47'/><rect x='1' y='2' width='18' height='3' rx='1.5' fill='#C4A97D'/><rect x='2' y='8' width='1.5' height='3' rx='.5' fill='#6B5535'/><rect x='16.5' y='8' width='1.5' height='3' rx='.5' fill='#6B5535'/><circle cx='5' cy='3.5' r='.6' fill='#8B6F47'/><circle cx='10' cy='3.5' r='.6' fill='#8B6F47'/><circle cx='15' cy='3.5' r='.6' fill='#8B6F47'/></svg> {T.Get(lang, "Ottoman")}</span>");
         if (bags)    sb.Append($"<span class='cal-tag'>🧳 {T.Get(lang, "Bags")}</span>");
         return sb.Length > 0 ? $"<div class='cal-tags'>{sb}</div>" : "";
     }
