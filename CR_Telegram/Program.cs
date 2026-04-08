@@ -1142,10 +1142,10 @@ string FormatReservationsForContext(List<BriefingReservation> reservations)
             if (!string.IsNullOrWhiteSpace(r.Registration.ArrivalTime))
                 sb.Append($" | Arrival: {r.Registration.ArrivalTime}");
             var reqs = new List<string>();
-            if (r.Registration.EarlyCheckIn) reqs.Add("early check-in");
-            if (r.Registration.CribSetup)    reqs.Add("crib");
-            if (r.Registration.SofaSetup)    reqs.Add("sofa bed");
-            if (r.Registration.FoldableBed)  reqs.Add("ottoman bed");
+            if (r.Registration.EarlyCheckIn) reqs.Add("⚡ early check-in");
+            if (r.Registration.CribSetup)    reqs.Add("👶 crib");
+            if (r.Registration.SofaSetup)    reqs.Add("🛋️ sofa bed");
+            if (r.Registration.FoldableBed)  reqs.Add("🛏️ ottoman bed");
             if (!string.IsNullOrWhiteSpace(r.Registration.OtherRequests))
                 reqs.Add(r.Registration.OtherRequests.Trim());
             if (reqs.Count > 0) sb.Append($" | Requests: {string.Join(", ", reqs)}");
