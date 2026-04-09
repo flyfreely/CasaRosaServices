@@ -182,7 +182,7 @@ static class ReservationPages
 
     public static string Header(string active, string lang = "en", bool isAdmin = false)
     {
-        var adminActive = active is "settings" or "reminders" or "users" or "statistics" or "auditlog" or "log";
+        var adminActive = active is "settings" or "reminders" or "users" or "statistics" or "auditlog" or "log" or "maintenance";
         var adminMenu = isAdmin ? $"""
                 <div class="dropdown">
                   <span class="dropdown-toggle {(adminActive ? "on" : "")}">{T.Get(lang, "Admin")} ▾</span>
@@ -191,6 +191,7 @@ static class ReservationPages
                     <a href="/dashboard"  class="{(active == "settings"  ? "on" : "")}">{T.Get(lang, "Settings")}</a>
                     <a href="/reminders"  class="{(active == "reminders" ? "on" : "")}">{T.Get(lang, "Reminders")}</a>
                     <a href="/users"      class="{(active == "users"     ? "on" : "")}">{T.Get(lang, "Users")}</a>
+                    <a href="/maintenance" class="{(active == "maintenance" ? "on" : "")}">{T.Get(lang, "Maintenance")}</a>
                     <a href="/audit-log"  class="{(active == "auditlog"  ? "on" : "")}">{T.Get(lang, "Audit Log")}</a>
                     <a href="/log"        class="{(active == "log"       ? "on" : "")}">{T.Get(lang, "Telegram Log")}</a>
                   </div>

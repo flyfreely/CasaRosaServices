@@ -319,6 +319,29 @@ app.MapPost("/admin/telegram-log", async (TelegramLogRequest req) =>
 app.MapGet("/admin/telegram-log", async (int? limit) =>
     Results.Ok(await AdminDb.GetTelegramLogAsync(limit ?? 200)));
 
+// ── Maintenance tasks ────────────────────────────────────────────────────────
+app.MapGet("/admin/maintenance", async () =>
+    Results.Ok(await AdminDb.ListMaintenanceTasksAsync()));
+
+app.MapPost("/admin/maintenance/{id:int}/done", async (int id) =>
+{
+    await AdminDb.MarkMaintenanceDoneAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/maintenance/{id:int}/interval", async (int id, MaintenanceIntervalRequest req) =>
+{
+    if (req.IntervalWeeks < 1) return Results.BadRequest("Interval must be at least 1 week.");
+    await AdminDb.UpdateMaintenanceIntervalAsync(id, req.IntervalWeeks);
+    return Results.Ok();
+});
+
+app.MapPost("/admin/maintenance/{id:int}/reminder-created", async (int id) =>
+{
+    await AdminDb.MarkMaintenanceReminderCreatedAsync(id);
+    return Results.Ok();
+});
+
 app.Run();
 
 // ── Request handler ───────────────────────────────────────────────────────────
@@ -486,6 +509,7 @@ record AdminConfigSetRequest(string Value);
 record AdminSetRoleRequest(string Role);
 record AdminSetLanguageRequest(string Language);
 record ReminderCreateRequest(string Message, DateTime ScheduledAt, long ChannelId, string BotId, string Language);
+record MaintenanceIntervalRequest(int IntervalWeeks);
 
 record RegistrationResponse(
     string? Email,

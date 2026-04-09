@@ -339,6 +339,53 @@ app.MapPost("/reminders/create", async (HttpRequest req) =>
     return Results.Redirect("/reminders");
 }).RequireAuthorization();
 
+// ── Maintenance ──────────────────────────────────────────────────────────────
+
+app.MapGet("/maintenance", async (HttpContext ctx) =>
+{
+    if (!IsAdmin(ctx)) return Results.Redirect("/calendar");
+    var lang  = GetLang(ctx);
+    var tasks = await resHttp.GetFromJsonAsync<List<MaintenanceTaskRow>>(ResUrl("/admin/maintenance"), jsonOpts) ?? new();
+
+    // Auto-create reminders for due tasks
+    var now = DateTime.UtcNow;
+    foreach (var t in tasks)
+    {
+        var nextDue = t.LastDoneAt?.AddDays(t.IntervalWeeks * 7);
+        var isDue   = t.LastDoneAt == null || nextDue <= now;
+        var alreadyReminded = t.LastReminderCreatedAt != null && (t.LastDoneAt == null || t.LastReminderCreatedAt > t.LastDoneAt);
+        if (isDue && !alreadyReminded)
+        {
+            var taskName = TaskLabel(t.TaskKey, lang);
+            var msg = $"🔧 {T.Get(lang, "Maintenance")}: {taskName} — {T.Get(lang, "Apt")} {t.ApartmentNumber}";
+            var payload = JsonContent.Create(new { message = msg, scheduledAt = now, channelId = -5186091931L, botId = "Auto_Bot", language = "Russian" });
+            await resHttp.PostAsync(ResUrl("/admin/reminders"), payload);
+            await resHttp.PostAsync(ResUrl($"/admin/maintenance/{t.Id}/reminder-created"), null);
+        }
+    }
+    // Re-fetch after possible updates
+    tasks = await resHttp.GetFromJsonAsync<List<MaintenanceTaskRow>>(ResUrl("/admin/maintenance"), jsonOpts) ?? new();
+
+    return Results.Content(MaintenancePage(tasks, lang, IsAdmin(ctx)), "text/html");
+}).RequireAuthorization();
+
+app.MapPost("/maintenance/{id:int}/done", async (int id, HttpContext ctx) =>
+{
+    if (!IsAdmin(ctx)) return Results.Redirect("/maintenance");
+    await resHttp.PostAsync(ResUrl($"/admin/maintenance/{id}/done"), null);
+    Audit(ctx.User.Identity?.Name ?? "?", "Maintenance done", $"#{id}");
+    return Results.Redirect("/maintenance");
+}).RequireAuthorization();
+
+app.MapPost("/maintenance/{id:int}/interval", async (int id, HttpContext ctx) =>
+{
+    if (!IsAdmin(ctx)) return Results.Redirect("/maintenance");
+    var form  = await ctx.Request.ReadFormAsync();
+    var weeks = int.TryParse(form["weeks"].FirstOrDefault(), out var w) && w >= 1 ? w : 4;
+    await resHttp.PostAsJsonAsync(ResUrl($"/admin/maintenance/{id}/interval"), new { intervalWeeks = weeks }, jsonOpts);
+    return Results.Redirect("/maintenance");
+}).RequireAuthorization();
+
 // ── Calendar ──────────────────────────────────────────────────────────────────
 
 app.MapGet("/calendar", async (HttpContext ctx, string? date, string? month) =>
@@ -1753,6 +1800,138 @@ string CalendarDayHtml(DateOnly sel, DateOnly today, List<CalAptInfo> apts, bool
         <div class="apt-cols">
           {aptColsHtml}
         </div>
+        """;
+}
+
+string TaskLabel(string taskKey, string lang) => taskKey switch
+{
+    "door_battery"       => T.Get(lang, "Check door battery"),
+    "ac_filters"         => T.Get(lang, "Clean AC filters"),
+    "ventilator_filters" => T.Get(lang, "Check ventilator filters"),
+    _                    => taskKey
+};
+
+string TaskIcon(string taskKey) => taskKey switch
+{
+    "door_battery"       => "🔋",
+    "ac_filters"         => "❄️",
+    "ventilator_filters" => "🌀",
+    _                    => "🔧"
+};
+
+string MaintenancePage(List<MaintenanceTaskRow> tasks, string lang = "en", bool isAdmin = false)
+{
+    string[] aptColor = { "#4a90d9", "#2ecc71", "#e67e22" };
+    string[] aptFloor = { T.Get(lang, "1st Floor"), T.Get(lang, "2nd Floor"), T.Get(lang, "3rd Floor") };
+    var now = DateTime.UtcNow;
+
+    string StatusBadge(MaintenanceTaskRow t)
+    {
+        if (t.LastDoneAt == null) return $"<span class='maint-badge maint-overdue'>{T.Get(lang, "Never done")}</span>";
+        var nextDue = t.LastDoneAt.Value.AddDays(t.IntervalWeeks * 7);
+        if (nextDue <= now) return $"<span class='maint-badge maint-overdue'>{T.Get(lang, "Overdue")}</span>";
+        if (nextDue <= now.AddDays(7)) return $"<span class='maint-badge maint-soon'>{T.Get(lang, "Due Soon")}</span>";
+        return "<span class='maint-badge maint-ok'>OK</span>";
+    }
+
+    string NextDueStr(MaintenanceTaskRow t)
+    {
+        if (t.LastDoneAt == null) return "—";
+        var nextDue = t.LastDoneAt.Value.AddDays(t.IntervalWeeks * 7);
+        return nextDue.ToString("MMM d, yyyy", T.Culture(lang));
+    }
+
+    string LastDoneStr(MaintenanceTaskRow t) =>
+        t.LastDoneAt?.ToString("MMM d, yyyy", T.Culture(lang)) ?? "—";
+
+    string AptColumn(int apt)
+    {
+        var aptTasks = tasks.Where(t => t.ApartmentNumber == apt).ToList();
+        var idx = apt - 1;
+        var taskCards = string.Join("", aptTasks.Select(t => $"""
+            <div class='maint-task'>
+              <div class='maint-task-header'>
+                <span class='maint-icon'>{TaskIcon(t.TaskKey)}</span>
+                <span class='maint-task-name'>{TaskLabel(t.TaskKey, lang)}</span>
+                {StatusBadge(t)}
+              </div>
+              <div class='maint-dates'>
+                <span>{T.Get(lang, "Last done")}: <strong>{LastDoneStr(t)}</strong></span>
+                <span>{T.Get(lang, "Next due")}: <strong>{NextDueStr(t)}</strong></span>
+              </div>
+              <div class='maint-actions'>
+                <form method='post' action='/maintenance/{t.Id}/done' style='margin:0'>
+                  <button class='btn btn-primary btn-sm'>{T.Get(lang, "Mark Done")}</button>
+                </form>
+                <form method='post' action='/maintenance/{t.Id}/interval' style='margin:0;display:flex;align-items:center;gap:.3rem'>
+                  <label style='font-size:.78rem;color:#888'>{T.Get(lang, "Interval (weeks)")}:</label>
+                  <input type='number' name='weeks' value='{t.IntervalWeeks}' min='1' max='52' style='width:50px;padding:.2rem .4rem;border:1px solid #ddd;border-radius:5px;font-size:.82rem'/>
+                  <button class='btn btn-secondary btn-sm'>{T.Get(lang, "Save")}</button>
+                </form>
+              </div>
+            </div>
+            """));
+
+        return $"""
+            <div class='maint-apt-col' style='border-top:3px solid {aptColor[idx]}'>
+              <div class='apt-img-wrap'>
+                <img class='apt-img' src='/images/apartment{apt}.jpg' alt='Apt {apt}'/>
+              </div>
+              <div class='cal-apt-header'>
+                <span class='apt-badge' style='background:{aptColor[idx]}'>{apt}</span>
+                <span style='font-weight:600;font-size:.85rem'>{aptFloor[idx]}</span>
+              </div>
+              {taskCards}
+            </div>
+            """;
+    }
+
+    return $$"""
+        <!DOCTYPE html>
+        <html lang="{{lang}}">
+        <head>
+          <meta charset="utf-8"/>
+          <meta name="viewport" content="width=device-width,initial-scale=1"/>
+          <title>{{T.Get(lang, "Maintenance")}} – Casa Rosa Admin</title>
+          <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+          <style>
+            {{ReservationPages.Css}}
+            .maint-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+            .maint-apt-col { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.07);
+                             padding:0 0 1rem; overflow:hidden; display:flex; flex-direction:column; }
+            .maint-apt-col .apt-img-wrap { margin-bottom:0; }
+            .maint-apt-col .apt-img { width:100%; height:130px; object-fit:cover; display:block; }
+            .maint-apt-col .cal-apt-header { padding:.8rem 1rem .4rem; display:flex; align-items:center; gap:.5rem; }
+            .maint-task { padding:.7rem 1rem; border-top:1px solid #f0f0f0; }
+            .maint-task-header { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
+            .maint-icon { font-size:1.1rem; }
+            .maint-task-name { font-weight:600; font-size:.9rem; flex:1; }
+            .maint-badge { font-size:.72rem; font-weight:600; padding:.2rem .55rem; border-radius:12px; color:#fff; }
+            .maint-overdue { background:#ef4444; }
+            .maint-soon { background:#f59e0b; }
+            .maint-ok { background:#22c55e; }
+            .maint-dates { display:flex; gap:1.2rem; font-size:.8rem; color:#666; margin-top:.35rem; flex-wrap:wrap; }
+            .maint-actions { display:flex; gap:.5rem; margin-top:.5rem; align-items:center; flex-wrap:wrap; }
+            .btn-sm { font-size:.78rem; padding:.3rem .7rem; }
+            @media(max-width:700px) {
+              .maint-grid { grid-template-columns:1fr; }
+              .maint-apt-col .apt-img-wrap { display:none; }
+            }
+          </style>
+        </head>
+        <body>
+          {{ReservationPages.Header("maintenance", lang, isAdmin)}}
+          <main>
+            <h1>{{T.Get(lang, "Maintenance")}}</h1>
+            <div class="maint-grid">
+              {{AptColumn(1)}}
+              {{AptColumn(2)}}
+              {{AptColumn(3)}}
+            </div>
+          </main>
+          {{ReservationPages.Footer()}}
+        </body>
+        </html>
         """;
 }
 

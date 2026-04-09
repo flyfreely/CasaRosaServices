@@ -187,6 +187,35 @@ static class AdminDb
             ALTER TABLE dbo.Registration ADD SubmittedAt DATETIME NULL
             """);
 
+        await Exec(conn, """
+            IF NOT EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Admin_MaintenanceTasks')
+            CREATE TABLE dbo.Admin_MaintenanceTasks (
+                Id                     INT IDENTITY PRIMARY KEY,
+                ApartmentNumber        INT          NOT NULL,
+                TaskKey                NVARCHAR(50) NOT NULL,
+                IntervalWeeks          INT          NOT NULL DEFAULT 4,
+                LastDoneAt             DATETIME2    NULL,
+                LastReminderCreatedAt  DATETIME2    NULL,
+                CONSTRAINT UQ_Maint_Apt_Task UNIQUE (ApartmentNumber, TaskKey)
+            )
+            """);
+
+        // Seed the 9 default maintenance tasks
+        string[] taskKeys = { "door_battery", "ac_filters", "ventilator_filters" };
+        foreach (var apt in new[] { 1, 2, 3 })
+            foreach (var tk in taskKeys)
+            {
+                var exists = (int)(await Scalar(conn,
+                    "SELECT COUNT(*) FROM dbo.Admin_MaintenanceTasks WHERE ApartmentNumber=@a AND TaskKey=@t",
+                    ("@a", (object)apt), ("@t", (object)tk)))!;
+                if (exists == 0)
+                    await Exec(conn,
+                        "INSERT INTO dbo.Admin_MaintenanceTasks (ApartmentNumber, TaskKey) VALUES (@a, @t)",
+                        ("@a", (object)apt), ("@t", (object)tk));
+            }
+
         await SeedConfig(conn, "briefing_time",               "18:00");
         await SeedConfig(conn, "briefing_channel",             "-5129864639");
         await SeedConfig(conn, "today_briefing_time",         "09:00");
@@ -493,6 +522,47 @@ static class AdminDb
         return next;
     }
 
+    // ── Maintenance tasks ──────────────────────────────────────────────────────
+    public static async Task<List<MaintenanceTaskRow>> ListMaintenanceTasksAsync()
+    {
+        var list = new List<MaintenanceTaskRow>();
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        using var cmd = new SqlCommand(
+            "SELECT Id, ApartmentNumber, TaskKey, IntervalWeeks, LastDoneAt, LastReminderCreatedAt FROM dbo.Admin_MaintenanceTasks ORDER BY ApartmentNumber, TaskKey", conn);
+        using var rd = await cmd.ExecuteReaderAsync();
+        while (await rd.ReadAsync())
+            list.Add(new((int)rd["Id"], (int)rd["ApartmentNumber"], (string)rd["TaskKey"],
+                (int)rd["IntervalWeeks"],
+                rd["LastDoneAt"] == DBNull.Value ? null : (DateTime)rd["LastDoneAt"],
+                rd["LastReminderCreatedAt"] == DBNull.Value ? null : (DateTime)rd["LastReminderCreatedAt"]));
+        return list;
+    }
+
+    public static async Task MarkMaintenanceDoneAsync(int id)
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        await Exec(conn, "UPDATE dbo.Admin_MaintenanceTasks SET LastDoneAt = GETUTCDATE(), LastReminderCreatedAt = NULL WHERE Id = @id",
+            ("@id", (object)id));
+    }
+
+    public static async Task UpdateMaintenanceIntervalAsync(int id, int intervalWeeks)
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        await Exec(conn, "UPDATE dbo.Admin_MaintenanceTasks SET IntervalWeeks = @w WHERE Id = @id",
+            ("@id", (object)id), ("@w", (object)intervalWeeks));
+    }
+
+    public static async Task MarkMaintenanceReminderCreatedAsync(int id)
+    {
+        using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync();
+        await Exec(conn, "UPDATE dbo.Admin_MaintenanceTasks SET LastReminderCreatedAt = GETUTCDATE() WHERE Id = @id",
+            ("@id", (object)id));
+    }
+
     // ── Password helpers ──────────────────────────────────────────────────────
     public static string HashPassword(string password)
     {
@@ -570,3 +640,4 @@ record AdminUser(int Id, string Username, string Role, DateTime CreatedAt, strin
 record ReminderRow(int Id, string Message, DateTime ScheduledAt, long ChannelId, string BotId, string Language, DateTime CreatedAt);
 record AuditLogRow(int Id, DateTime At, string Actor, string Action, string? Detail);
 record CleaningRow(DateOnly Date, int ApartmentNumber, int State);
+record MaintenanceTaskRow(int Id, int ApartmentNumber, string TaskKey, int IntervalWeeks, DateTime? LastDoneAt, DateTime? LastReminderCreatedAt);

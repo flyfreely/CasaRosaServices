@@ -92,3 +92,4 @@ record AdminUserRow(int Id, string Username, string Role, DateTime CreatedAt, st
 record AuditLogEntry(int Id, DateTime At, string Actor, string Action, string? Detail);
 record ReminderAdminRow(int Id, string Message, DateTime ScheduledAt, long ChannelId, string BotId, string Language, DateTime CreatedAt);
 record MonthlyStatsRow(string Month, int ApartmentNumber, int Nights, decimal Payout);
+record MaintenanceTaskRow(int Id, int ApartmentNumber, string TaskKey, int IntervalWeeks, DateTime? LastDoneAt, DateTime? LastReminderCreatedAt);
