@@ -1032,8 +1032,9 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
                     var s when s.Contains("self")                                               => "🔑",
                     _                                                                           => "🚌❓"
                 };
-                reqs.Add(checkin.Registration.CribSetup  ? "👶✅" : "👶❌");
-                reqs.Add(checkin.Registration.SofaSetup  ? "🛋️✅" : "🛋️❌");
+                reqs.Add(checkin.Registration.CribSetup    ? "👶✅" : "👶❌");
+                reqs.Add(checkin.Registration.SofaSetup    ? "🛋️✅" : "🛋️❌");
+                reqs.Add(checkin.Registration.FoldableBed  ? "🛏️✅" : "🛏️❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
                 reqs.Add(methodIcon);
