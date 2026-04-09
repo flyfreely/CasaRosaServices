@@ -1034,7 +1034,7 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
                 };
                 reqs.Add(checkin.Registration.CribSetup    ? "👶✅" : "👶❌");
                 reqs.Add(checkin.Registration.SofaSetup    ? "🛋️✅" : "🛋️❌");
-                reqs.Add(checkin.Registration.FoldableBed  ? "🛏️✅" : "🛏️❌");
+                reqs.Add(checkin.Registration.FoldableBed  ? "🫔✅" : "🫔❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
                 reqs.Add(methodIcon);
@@ -1146,7 +1146,7 @@ string FormatReservationsForContext(List<BriefingReservation> reservations)
             if (r.Registration.EarlyCheckIn) reqs.Add("⚡ early check-in");
             if (r.Registration.CribSetup)    reqs.Add("👶 crib");
             if (r.Registration.SofaSetup)    reqs.Add("🛋️ sofa bed");
-            if (r.Registration.FoldableBed)  reqs.Add("🛏️ ottoman bed");
+            if (r.Registration.FoldableBed)  reqs.Add("🫔 ottoman bed");
             if (!string.IsNullOrWhiteSpace(r.Registration.OtherRequests))
                 reqs.Add(r.Registration.OtherRequests.Trim());
             if (reqs.Count > 0) sb.Append($" | Requests: {string.Join(", ", reqs)}");
