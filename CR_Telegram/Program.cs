@@ -989,7 +989,7 @@ async Task<long> GetTodayBriefingChannelAsync()
 }
 
 string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReservation> reservations,
-    Dictionary<int, string?> ciNotes, Dictionary<int, string?> coNotes)
+    Dictionary<int, BriefingCalNote?> ciNotes, Dictionary<int, BriefingCalNote?> coNotes)
 {
     var dateIso = date.ToString("yyyy-MM-dd");
     var dateStr = date.ToString("d MMM yyyy", new System.Globalization.CultureInfo("ru-RU"));
@@ -1004,7 +1004,8 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
         if (checkout == null && checkin == null) continue;
         any = true;
 
-        var coTime = checkout != null ? (coNotes.GetValueOrDefault(apt) ?? "11:00") : null;
+        var coNote = coNotes.GetValueOrDefault(apt);
+        var coTime = checkout != null ? (coNote?.CheckOutTime ?? "11:00") : null;
         lines.Add("");
         lines.Add($"🏠 Апт {apt}");
         lines.Add($"📤 {(coTime ?? "—")}");
@@ -1012,7 +1013,8 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
 
         if (checkin != null)
         {
-            var arrivalTime = ciNotes.GetValueOrDefault(apt)
+            var ciNote = ciNotes.GetValueOrDefault(apt);
+            var arrivalTime = ciNote?.CheckInTime
                 ?? (!string.IsNullOrWhiteSpace(checkin.Registration?.ArrivalTime)
                     ? checkin.Registration.ArrivalTime : "неизвестно");
             var guests = $"{checkin.Adults}/{checkin.Children}/{checkin.Infants}";
@@ -1021,6 +1023,11 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
             var reqs = new List<string>();
             if (checkin.Registration != null)
             {
+                // CalNote overrides registration values
+                var effCrib    = ciNote != null ? ciNote.Crib       : checkin.Registration.CribSetup;
+                var effSofa    = ciNote != null ? ciNote.SofaBed    : checkin.Registration.SofaSetup;
+                var effOttoman = ciNote != null ? ciNote.OttomanBed : checkin.Registration.FoldableBed;
+
                 var method = checkin.Registration.ArrivalMethod?.ToLower() ?? "";
                 var methodIcon = method switch {
                     var s when s.Contains("airport") || s.Contains("flight")                    => "✈️",
@@ -1032,9 +1039,9 @@ string? BuildBriefingMessage(string labelRu, DateOnly date, List<BriefingReserva
                     var s when s.Contains("self")                                               => "🔑",
                     _                                                                           => "🚌❓"
                 };
-                reqs.Add(checkin.Registration.CribSetup    ? "👶✅" : "👶❌");
-                reqs.Add(checkin.Registration.SofaSetup    ? "🛋️✅" : "🛋️❌");
-                reqs.Add(checkin.Registration.FoldableBed  ? "🟤✅" : "🟤❌");
+                reqs.Add(effCrib    ? "👶✅" : "👶❌");
+                reqs.Add(effSofa    ? "🛋️✅" : "🛋️❌");
+                reqs.Add(effOttoman ? "🟤✅" : "🟤❌");
                 if (!string.IsNullOrWhiteSpace(checkin.Registration.OtherRequests))
                     reqs.Add(checkin.Registration.OtherRequests.Trim());
                 reqs.Add(methodIcon);
@@ -1101,10 +1108,10 @@ async Task<List<BriefingReservation>> FetchReservationsAsync(string date)
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
 }
 
-async Task<(Dictionary<int, string?> ciNotes, Dictionary<int, string?> coNotes)> FetchCalNotesForBriefingAsync(DateOnly date)
+async Task<(Dictionary<int, BriefingCalNote?> ciNotes, Dictionary<int, BriefingCalNote?> coNotes)> FetchCalNotesForBriefingAsync(DateOnly date)
 {
-    var ciNotes = new Dictionary<int, string?>();
-    var coNotes = new Dictionary<int, string?>();
+    var ciNotes = new Dictionary<int, BriefingCalNote?>();
+    var coNotes = new Dictionary<int, BriefingCalNote?>();
     try
     {
         var dateStr = date.ToString("yyyy-MM-dd");
@@ -1121,10 +1128,10 @@ async Task<(Dictionary<int, string?> ciNotes, Dictionary<int, string?> coNotes)>
             if (!noteResp.IsSuccessStatusCode) continue;
             var note = await noteResp.Content.ReadFromJsonAsync<BriefingCalNote>(opts);
             if (note == null) continue;
-            if (r.CheckInDate == date  && !string.IsNullOrWhiteSpace(note.CheckInTime))
-                ciNotes[r.ApartmentNumber] = note.CheckInTime;
-            if (r.CheckOutDate == date && !string.IsNullOrWhiteSpace(note.CheckOutTime))
-                coNotes[r.ApartmentNumber] = note.CheckOutTime;
+            if (r.CheckInDate == date)
+                ciNotes[r.ApartmentNumber] = note;
+            if (r.CheckOutDate == date)
+                coNotes[r.ApartmentNumber] = note;
         }
     }
     catch (Exception ex) { Console.WriteLine($"[CalNotes] Error: {ex.Message}"); }
@@ -1620,7 +1627,7 @@ record BriefingReservation(
 record ReminderExtraction(string Message, DateTime ScheduledAt);
 record ApiReminderRow(int Id, string Message, DateTime ScheduledAt, long ChannelId, string BotId, string Language);
 record BriefingManageRow(int Id, int ApartmentNumber, DateOnly CheckInDate, DateOnly CheckOutDate);
-record BriefingCalNote(string? CheckInTime, string? CheckOutTime);
+record BriefingCalNote(string? CheckInTime, string? CheckOutTime, bool Crib = false, bool EarlyCheckIn = false, bool SofaBed = false, bool OttomanBed = false, bool LeavingBags = false);
 
 record ToolReservation(
     int      ApartmentNumber,
